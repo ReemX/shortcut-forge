@@ -2,6 +2,8 @@ import { getCompatManagerTools } from "./compatTools";
 
 /** A Proton/compatibility tool as reported by Steam. */
 export interface CompatibilityTool {
+  /** Only reported by the CompatManager service, so absent on older clients. */
+  bActive?: boolean;
   strToolName: string;
   strDisplayName: string;
 }
@@ -397,10 +399,18 @@ export async function getCompatibilityTools(): Promise<CompatibilityTool[]> {
 }
 
 /**
- * Best default compatibility tool for a Windows executable: Proton Experimental
- * when available, otherwise the first tool Steam listed.
+ * Best default compatibility tool for a Windows executable: the one Steam marks
+ * active, then its Proton Stable alias. Both favour a stable release, usually
+ * installed already, over Experimental, which changes often and may need a
+ * download on first launch. Experimental and then the first listed tool remain
+ * as fallbacks for clients that report neither.
  */
 export function pickDefaultCompatTool(tools: CompatibilityTool[]): string {
-  const experimental = tools.find((tool) => tool.strToolName === "proton_experimental");
-  return experimental?.strToolName ?? tools[0]?.strToolName ?? "";
+  const named = (name: string) => tools.find((tool) => tool.strToolName === name);
+  const best =
+    tools.find((tool) => tool.bActive) ??
+    named("proton-stable") ??
+    named("proton_experimental") ??
+    tools[0];
+  return best?.strToolName ?? "";
 }

@@ -51,7 +51,7 @@ Field codes (`%U`, `%f`, Flatpak's `@@u … @@` wrappers) are stripped, and the 
 
 - **Name** is pre-filled from the filename and stays editable.
 - **Start directory** is set to the executable's folder, which is what most games expect.
-- **Proton** is preselected for `.exe`, `.bat`, `.cmd` and `.msi` files, using Proton Experimental when available. Any compatibility tool Steam knows about can be chosen instead.
+- **Proton** is preselected for `.exe`, `.bat`, `.cmd` and `.msi` files, using the tool Steam marks as active, then Proton Stable, then Proton Experimental. Any compatibility tool Steam knows about can be chosen instead.
 - **Missing executable bit** — downloads often arrive without it and Steam will not launch such a file, so a **Mark as executable** button appears when it is needed.
 - **Wrong file type** — picking an archive, a `.dll` or an image gets you a warning rather than a broken shortcut.
 - **Localised folders** — Places reads `~/.config/user-dirs.dirs`, so *Downloads* is right whatever your desktop language is, and the folder you browsed last comes first.

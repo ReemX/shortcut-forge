@@ -13,6 +13,8 @@ import { findModule, findModuleExport } from "@decky/ui";
 export interface CompatManagerTool {
   strToolName: string;
   strDisplayName: string;
+  /** Set on the tool Steam itself currently treats as the one to use. */
+  bActive: boolean;
 }
 
 interface BinaryReader {
@@ -40,6 +42,7 @@ const FIELD_ALIAS = 2;
 
 const TOOL_NAME = 1;
 const TOOL_DISPLAY_NAME = 2;
+const TOOL_ACTIVE = 4;
 const TOOL_INCOMPATIBLE = 6;
 
 class CompatToolsResponse {
@@ -53,12 +56,13 @@ class CompatToolsResponse {
         continue;
       }
 
-      const tool: ParsedTool = { strToolName: "", strDisplayName: "", incompatible: false };
+      const tool: ParsedTool = { strToolName: "", strDisplayName: "", bActive: false, incompatible: false };
       reader.readMessage(tool, (item, fields) => {
         while (fields.nextField() && !fields.isEndGroup()) {
           const number = fields.getFieldNumber();
           if (number === TOOL_NAME) item.strToolName = fields.readString();
           else if (number === TOOL_DISPLAY_NAME) item.strDisplayName = fields.readString();
+          else if (number === TOOL_ACTIVE && field === FIELD_TOOL) item.bActive = fields.readBool();
           else if (number === TOOL_INCOMPATIBLE && field === FIELD_TOOL) item.incompatible = fields.readBool();
           else fields.skipField();
         }
@@ -123,8 +127,9 @@ export async function getCompatManagerTools(): Promise<CompatManagerTool[]> {
   return response
     .Body()
     .tools.filter((tool) => tool.strToolName && !tool.incompatible)
-    .map(({ strToolName, strDisplayName }) => ({
+    .map(({ strToolName, strDisplayName, bActive }) => ({
       strToolName,
       strDisplayName: strDisplayName || strToolName,
+      bActive,
     }));
 }
