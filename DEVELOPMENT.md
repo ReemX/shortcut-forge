@@ -10,6 +10,7 @@ pnpm run package   # produces out/<name>-v<version>.zip, needs the zip command
 pnpm test          # naming and launch preset logic
 python3 -B tests/backend_presets.py   # preset storage, without Decky
 python3 -B tests/backend_update.py    # reading GitHub releases, without Decky
+python3 -B tests/backend_apps.py      # which desktop entries get listed, without Decky
 ```
 
 The frontend lives in `src/`:

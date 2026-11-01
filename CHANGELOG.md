@@ -6,6 +6,16 @@ reading the diff.
 
 Versions before 2.0.0 are from Add Non-Steam Games, the plugin this was forked from.
 
+## v2.2.0
+
+- Applications are back, and they are better than before. A switch at the top of the panel flips between **Files** and **Applications**. Press A on it, or L1 and R1 from anywhere on the screen, and the panel remembers which one you used last.
+- Your own applications come first. SteamOS's 40-odd tools are folded under **System apps**, and search looks through both.
+- Anything already in your library says **In library**, and that now works for Flatpaks too.
+- Steam's own menu entries and terminal programs are no longer listed, since neither makes sense as a new shortcut.
+- The list updates by itself when something is installed or removed, so **Rescan** is gone.
+- Going back from the form lands on the application you came from.
+- More applications show their icon, including ones that only ship a large one and KDE's own.
+
 ## v2.1.1
 
 - Long text in a field no longer runs under its clear button, which was most noticeable on the API key.

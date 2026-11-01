@@ -1,4 +1,4 @@
-import { DialogButton, Focusable } from "@decky/ui";
+import { DialogButton, Focusable, GamepadButton } from "@decky/ui";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { FaChevronDown, FaChevronLeft, FaChevronRight, FaTriangleExclamation } from "react-icons/fa6";
 
@@ -317,6 +317,33 @@ export function GroupHeading({ children }: { children: string }) {
   );
 }
 
+const SCROLLER_STYLES = `
+.sf-scroller { overflow-y: auto; scroll-behavior: smooth; padding: 6px 0; box-sizing: border-box;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); }
+.sf-scroller::-webkit-scrollbar { display: none; }
+`;
+
+/**
+ * A list that scrolls inside a fixed box, so moving down never shifts what is around it.
+ *
+ * The selected row stays centred, so every press moves the list by one row. Left to
+ * Steam it sits still for a press, then lurches by two.
+ */
+export function ListScroller({ height, children }: { height: number; children: ReactNode }) {
+  return (
+    <div
+      className="sf-scroller"
+      style={{ height: `${height}px` }}
+      onFocus={(event) =>
+        (event.target as HTMLElement).closest(".sf-row")?.scrollIntoView({ block: "center", behavior: "smooth" })
+      }
+    >
+      <style>{SCROLLER_STYLES}</style>
+      {children}
+    </div>
+  );
+}
+
 /**
  * One screen of the panel. B means "back one step" from anywhere on it, which only
  * works from the root: a handler on a single row is lost as soon as focus moves off
@@ -326,9 +353,12 @@ export function Screen({
   onBack,
   secondaryLabel,
   onSecondary,
+  onBumper,
   children,
 }: {
   onBack?(): void;
+  /** L1 or R1, anywhere on this screen. */
+  onBumper?(side: "left" | "right"): void;
   /** What X does anywhere on this screen, named in Steam's button legend. */
   secondaryLabel?: string;
   onSecondary?(): void;
@@ -340,6 +370,10 @@ export function Screen({
       onCancelActionDescription={onBack ? "Back" : undefined}
       onSecondaryButton={onSecondary}
       onSecondaryActionDescription={secondaryLabel}
+      onButtonDown={(event) => {
+        if (event.detail.button === GamepadButton.BUMPER_LEFT) onBumper?.("left");
+        if (event.detail.button === GamepadButton.BUMPER_RIGHT) onBumper?.("right");
+      }}
       style={{ display: "flex", flexDirection: "column" }}
     >
       {children}

@@ -31,6 +31,7 @@ jobs:
           pnpm test
           python3 -B tests/backend_presets.py
           python3 -B tests/backend_update.py
+          python3 -B tests/backend_apps.py
 
       - name: Build frontend
         run: pnpm run build

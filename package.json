@@ -1,13 +1,13 @@
 {
   "name": "shortcut-forge",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Decky Loader plugin to add non-Steam games to your Steam library from Game Mode",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "package": "node scripts/package.mjs",
-    "test": "node --no-warnings tests/gameName.test.mjs && node --no-warnings tests/launchPresets.test.mjs && node --no-warnings tests/customPresets.test.mjs"
+    "test": "node --no-warnings tests/gameName.test.mjs && node --no-warnings tests/launchPresets.test.mjs && node --no-warnings tests/customPresets.test.mjs && node --no-warnings tests/applications.test.mjs"
   },
   "keywords": [
     "decky",

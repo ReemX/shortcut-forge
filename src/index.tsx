@@ -22,6 +22,7 @@ import {
   setDefaultFolder,
   getRestartPreference,
   inspectPath,
+  listApplications,
   listLocations,
   listSavedShortcuts,
   log,
@@ -33,16 +34,21 @@ import {
   setSteamGridDbKey,
 } from "./backend";
 import type {
+  Application,
   ArtworkSettings,
   Location,
   Locations,
   PathInfo,
   RestartPreference,
+  SavedShortcut,
   UpdateCheck,
 } from "./backend";
 import { fetchArtwork } from "./artwork";
 import { PLUGIN_VERSION } from "./version";
+import { AppList } from "./AppList";
+import { savedShortcutFor, usableIcon } from "./applications";
 import { LocationList } from "./LocationList";
+import { ModeSwitch } from "./ModeSwitch";
 import { ProgressRow } from "./ProgressRow";
 import { SavedGames } from "./SavedGames";
 import { TextEntry, usePanelVisible } from "./TextEntry";
@@ -66,7 +72,7 @@ import { FileBrowser } from "./FileBrowser";
 import { installUpdate } from "./update";
 import { suggestGameName } from "./gameName";
 import { GroupHeading, ListGroup, ListRow, Notice, PrimaryRow, Screen, ScreenHeader, ToggleRow } from "./ListRow";
-import { NEW_COLLECTION, clearSelection, getDraft, updateDraft, useDraft } from "./store";
+import { NEW_COLLECTION, clearSelection, getDraft, setMode, updateDraft, useDraft } from "./store";
 import type { AddedShortcut } from "./store";
 
 const NO_COMPAT_TOOL = "";
@@ -105,6 +111,10 @@ function Content() {
   // The in-progress game lives outside React so it survives the Quick Access
   // panel being unmounted while the file picker is open. See ./store.
   const {
+    mode,
+    appQuery,
+    showSystemApps,
+    pickedApp,
     browsePath,
     duplicateOf,
     target,
@@ -112,6 +122,7 @@ function Content() {
     artworkName,
     launchOptions,
     compatTool,
+    iconPath,
     collectionId,
     newCollectionName,
     added,
@@ -119,6 +130,9 @@ function Content() {
   } = useDraft();
 
   const [locations, setLocations] = useState<Locations | null>(null);
+  const [applications, setApplications] = useState<Application[] | null>(null);
+  const [applicationsFailed, setApplicationsFailed] = useState(false);
+  const [savedShortcuts, setSavedShortcuts] = useState<SavedShortcut[]>([]);
   const [defaultFolder, setDefaultFolderState] = useState("");
   // For the effects below, which must see the current value whenever they run.
   const defaultFolderRef = useRef("");
@@ -156,7 +170,7 @@ function Content() {
   useEffect(() => {
     const frame = requestAnimationFrame(() => scrollToTop(topAnchor.current));
     return () => cancelAnimationFrame(frame);
-  }, [screen, Boolean(target)]);
+  }, [screen, Boolean(target), mode]);
 
   useEffect(() => {
     if (!panelVisible) return;
@@ -173,6 +187,23 @@ function Content() {
     const frame = requestAnimationFrame(() => scrollToTop(topAnchor.current));
     return () => cancelAnimationFrame(frame);
   }, [panelVisible]);
+
+  // Both change outside the panel: something gets installed, or a game gets added.
+  useEffect(() => {
+    if (!panelVisible || mode !== "apps") return;
+    listApplications()
+      .then((result) => {
+        setApplications(result);
+        setApplicationsFailed(false);
+      })
+      .catch((error) => {
+        console.error("[shortcut-forge] could not list applications", error);
+        setApplicationsFailed(true);
+      });
+    listSavedShortcuts()
+      .then((saved) => setSavedShortcuts(saved.shortcuts))
+      .catch(() => {});
+  }, [panelVisible, mode]);
 
   useEffect(() => {
     listLocations()
@@ -265,6 +296,9 @@ function Content() {
       target: info,
       duplicateOf: "",
       name: suggestGameName(info.path),
+      launchOptions: "",
+      iconPath: "",
+      pickedApp: "",
       compatTool: info.is_windows_app ? pickDefaultCompatTool(compatTools) : NO_COMPAT_TOOL,
     });
     openScreen("main");
@@ -280,6 +314,36 @@ function Content() {
     rememberDirectory(info.directory)
       .then(() => listLocations().then(setLocations))
       .catch(() => {});
+  };
+
+  /**
+   * An application already says everything the form needs. For a Flatpak the
+   * executable is the flatpak runner and the arguments carry the app, the same split
+   * Steam's own desktop dialog makes.
+   */
+  const onApplicationPicked = (application: Application) => {
+    updateDraft({
+      added: null,
+      addError: null,
+      target: {
+        path: application.exe,
+        exists: true,
+        is_dir: false,
+        directory: application.start_dir,
+        extension: "",
+        is_windows_app: false,
+        is_executable: true,
+        looks_launchable: true,
+        needs_quoting: false,
+      },
+      duplicateOf: savedShortcutFor(application, savedShortcuts)?.name ?? "",
+      name: application.name,
+      launchOptions: application.args,
+      iconPath: usableIcon(application),
+      pickedApp: application.desktop_file,
+      compatTool: NO_COMPAT_TOOL,
+    });
+    openScreen("main");
   };
 
   const onMakeExecutable = async () => {
@@ -372,6 +436,7 @@ function Content() {
   const downloadArtworkFor = async (
     appId: number,
     searchName: string,
+    keepIcon: boolean,
     slots: string[],
   ) => {
     // The user can add another game while this runs, so only ever patch the
@@ -385,7 +450,7 @@ function Content() {
       patch({ artworkProgress: progress }),
     );
 
-    if (artwork.iconPath) setShortcutIcon(appId, artwork.iconPath);
+    if (artwork.iconPath && !keepIcon) setShortcutIcon(appId, artwork.iconPath);
 
     patch({ artwork, artworkProgress: null });
     return artwork;
@@ -418,7 +483,7 @@ function Content() {
 
     await flushArtworkKey();
     const settings = await refreshArtworkSettings();
-    await downloadArtworkFor(current.appId, current.searchName.trim(), settings.slots);
+    await downloadArtworkFor(current.appId, current.searchName.trim(), current.keepIcon, settings.slots);
   };
 
   const onAddToSteam = async () => {
@@ -436,6 +501,7 @@ function Content() {
         startDir: target.directory,
         launchOptions: launchOptions.trim(),
         compatTool,
+        iconPath,
       });
 
       // The game exists at this point, so a collection failure is reported but
@@ -450,6 +516,7 @@ function Content() {
           verified: result.verified,
           collection: filedInto ?? undefined,
           searchName,
+          keepIcon: Boolean(iconPath),
           artwork: null,
           artworkProgress: null,
         },
@@ -459,6 +526,9 @@ function Content() {
         artworkName: "",
         launchOptions: "",
         compatTool: NO_COMPAT_TOOL,
+        iconPath: "",
+        appQuery: "",
+        pickedApp: "",
         collectionId: "",
         newCollectionName: "",
       });
@@ -497,6 +567,7 @@ function Content() {
         const artwork = await downloadArtworkFor(
           result.appId,
           searchName,
+          Boolean(iconPath),
           settings.slots,
         );
         artworkFailed = !artwork.success;
@@ -681,12 +752,20 @@ function Content() {
 
   // Browsing is the whole panel until a file is chosen; after that the form
   // takes over so the user is not scrolling past a sidebar to reach it.
+  const inFolder = mode === "files" && Boolean(browsePath);
   const browse = (
     <Screen
-      onBack={browsePath ? () => updateDraft({ browsePath: null }) : undefined}
-      secondaryLabel={browsePath ? (browsePath === defaultFolder ? "Clear default folder" : "Open here by default") : undefined}
-      onSecondary={browsePath ? toggleDefaultFolder : undefined}
+      onBack={inFolder ? () => updateDraft({ browsePath: null }) : undefined}
+      secondaryLabel={inFolder ? (browsePath === defaultFolder ? "Clear default folder" : "Open here by default") : undefined}
+      onSecondary={inFolder ? toggleDefaultFolder : undefined}
+      onBumper={(side) => {
+        const next = side === "left" ? "files" : "apps";
+        if (next !== mode) setMode(next);
+      }}
     >
+      <ModeSwitch mode={mode} onChange={setMode} />
+      <div style={{ height: "6px" }} />
+
       {backendError && <Notice>{backendError}</Notice>}
       {versionWarning && <Notice>{versionWarning}</Notice>}
       {errorBanner}
@@ -718,7 +797,20 @@ function Content() {
         />
       )}
 
-      {browsePath ? (
+      {mode === "apps" ? (
+        <AppList
+          applications={applications}
+          failed={applicationsFailed}
+          saved={savedShortcuts}
+          query={appQuery}
+          showSystem={showSystemApps}
+          returnTo={pickedApp}
+          takeFocus={returnTo !== "settings"}
+          onQuery={(next) => updateDraft({ appQuery: next })}
+          onToggleSystem={() => updateDraft({ showSystemApps: !showSystemApps })}
+          onPick={onApplicationPicked}
+        />
+      ) : browsePath ? (
         <FileBrowser
           path={browsePath}
           defaultFolder={defaultFolder}

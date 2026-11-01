@@ -11,6 +11,8 @@ export interface AddedShortcut {
   collection?: string;
   /** What was searched for on SteamGridDB, kept so the user can retry. */
   searchName: string;
+  /** It has the application's own icon, which artwork should not replace. */
+  keepIcon: boolean;
   /** null until the download finishes, or when artwork was not wanted. */
   artwork: ArtworkResult | null;
   /** Set while a download is running, and what the progress bar reads from. */
@@ -20,8 +22,18 @@ export interface AddedShortcut {
 /** Dropdown value meaning "create a collection with the name typed below". */
 export const NEW_COLLECTION = "__new__";
 
+/** What the panel is choosing from. */
+export type BrowseMode = "files" | "apps";
+
 /** The in-progress game being added. */
 export interface Draft {
+  mode: BrowseMode;
+  /** What the applications list is filtered by. */
+  appQuery: string;
+  /** Whether the group of system applications is open. */
+  showSystemApps: boolean;
+  /** The application behind the form, so going back lands on its row. */
+  pickedApp: string;
   /** Folder open in the file browser, or null for the list of places. */
   browsePath: string | null;
   target: PathInfo | null;
@@ -38,6 +50,8 @@ export interface Draft {
   artworkName: string;
   launchOptions: string;
   compatTool: string;
+  /** The application's own icon for the shortcut, or "". */
+  iconPath: string;
   /** "" for no collection, `NEW_COLLECTION`, or an existing collection's id. */
   collectionId: string;
   /** Name used when `collectionId` is `NEW_COLLECTION`. */
@@ -46,7 +60,21 @@ export interface Draft {
   addError: string | null;
 }
 
+const MODE_KEY = "shortcut-forge.mode";
+
+function readMode(): BrowseMode {
+  try {
+    return window.localStorage.getItem(MODE_KEY) === "apps" ? "apps" : "files";
+  } catch {
+    return "files";
+  }
+}
+
 const EMPTY: Draft = {
+  mode: readMode(),
+  appQuery: "",
+  showSystemApps: false,
+  pickedApp: "",
   browsePath: null,
   target: null,
   duplicateOf: "",
@@ -54,6 +82,7 @@ const EMPTY: Draft = {
   artworkName: "",
   launchOptions: "",
   compatTool: "",
+  iconPath: "",
   collectionId: "",
   newCollectionName: "",
   added: null,
@@ -84,6 +113,16 @@ export function updateDraft(patch: Partial<Draft>): void {
   listeners.forEach((listener) => listener());
 }
 
+/** Remembered, so the panel opens the way you last used it. */
+export function setMode(mode: BrowseMode): void {
+  try {
+    window.localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Only a convenience, and the switch still works for this session.
+  }
+  updateDraft({ mode });
+}
+
 export function clearSelection(): void {
   updateDraft({
     target: null,
@@ -92,7 +131,8 @@ export function clearSelection(): void {
     artworkName: "",
     launchOptions: "",
     compatTool: "",
-      collectionId: "",
+    iconPath: "",
+    collectionId: "",
     newCollectionName: "",
   });
 }

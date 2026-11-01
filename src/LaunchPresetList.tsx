@@ -15,7 +15,7 @@ import {
   type CustomPreset,
   type LaunchPreset,
 } from "./launchPresets";
-import { GroupHeading, ListGroup, ListRow, Screen, ScreenHeader, ToggleRow } from "./ListRow";
+import { GroupHeading, ListGroup, ListRow, ListScroller, Screen, ScreenHeader, ToggleRow } from "./ListRow";
 import { TextEntry } from "./TextEntry";
 
 const OPTION_STYLE = {
@@ -32,12 +32,6 @@ const OPTION_STYLE = {
  */
 const LIST_HEIGHT = 262;
 const DETAIL_HEIGHT = 86;
-
-const SCROLLER_STYLES = `
-.sf-scroller { height: ${LIST_HEIGHT}px; overflow-y: auto; scroll-behavior: smooth; }
-.sf-scroller::-webkit-scrollbar { display: none; }
-.sf-scroller { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); padding: 6px 0; box-sizing: border-box; }
-`;
 
 function BuiltInDetail({ preset }: { preset: LaunchPreset }) {
   return (
@@ -195,17 +189,9 @@ export function LaunchOptionsScreen({
 
   return (
     <Screen onBack={onBack}>
-      <style>{SCROLLER_STYLES}</style>
       <ScreenHeader title="Launch options" trailing={activeCount > 0 ? `${activeCount} on` : undefined} onBack={onBack} />
 
-      {/* The selected row stays centred, so every press moves the list by one row.
-          Left to Steam it sits still for a press, then lurches by two. */}
-      <div
-        className="sf-scroller"
-        onFocus={(event) =>
-          (event.target as HTMLElement).closest(".sf-row")?.scrollIntoView({ block: "center", behavior: "smooth" })
-        }
-      >
+      <ListScroller height={LIST_HEIGHT}>
         <div onFocus={() => setDetail(null)}>
           <PanelSectionRow>
             <TextEntry label="As text" value={options} onChange={onChange} />
@@ -263,7 +249,7 @@ export function LaunchOptionsScreen({
             Choose a Proton version to see the Proton fixes.
           </div>
         )}
-      </div>
+      </ListScroller>
 
       <div
         style={{

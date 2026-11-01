@@ -95,6 +95,27 @@ export interface DirectoryListing {
 /** One folder for the file browser, folders first. */
 export const listDirectory = callable<[path: string, showHidden: boolean], DirectoryListing>("list_directory");
 
+/** Something installed, as the desktop menu knows it. */
+export interface Application {
+  name: string;
+  /** Absolute path to the binary. For a Flatpak this is the flatpak runner. */
+  exe: string;
+  /** Arguments from the desktop entry's Exec, field codes stripped. */
+  args: string;
+  start_dir: string;
+  /** "Flatpak", "Snap", "System" or "User". */
+  source: string;
+  categories: string[];
+  icon_path: string;
+  /** The icon inlined as a data URI, or "" when there is none. */
+  icon_data: string;
+  /** Unique per entry, so it doubles as the React key. */
+  desktop_file: string;
+}
+
+/** Cached in the backend until something is installed or removed. */
+export const listApplications = callable<[], Application[]>("list_applications");
+
 export const inspectPath = callable<[path: string], PathInfo>("inspect_path");
 
 /** chmod +x, for downloads that arrived without the executable bit. */
@@ -217,6 +238,7 @@ export interface SavedShortcut {
   app_id: number;
   name: string;
   exe: string;
+  launch_options: string;
 }
 
 export interface SavedShortcuts {

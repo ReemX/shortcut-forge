@@ -13,7 +13,7 @@ mkdirSync("shots", { recursive: true });
 
 const sh = await conn("SharedJSContext");
 const qa = await conn("QuickAccess_uid2");
-const BUTTONS = { A: "OK", B: "CANCEL", X: "SECONDARY", UP: "DIR_UP", DOWN: "DIR_DOWN", RIGHT: "DIR_RIGHT" };
+const BUTTONS = { A: "OK", B: "CANCEL", X: "SECONDARY", UP: "DIR_UP", DOWN: "DIR_DOWN", RIGHT: "DIR_RIGHT", L1: "BUMPER_LEFT", R1: "BUMPER_RIGHT" };
 const press = async (name, times = 1, gap = 280) => {
   for (let i = 0; i < times; i++) {
     await sh.ev(`(FocusNavController.DispatchVirtualButtonClick(DFL.GamepadButton.${BUTTONS[name]}),'ok')`);
@@ -67,6 +67,28 @@ for (let i = 0; i < 6 && !(await text()).startsWith("Decky"); i++) await press("
 await press("RIGHT");
 await downTo("Shortcut Forge");
 await press("A", 1, 1300);
+
+// Applications mode, then back to Files for the rest of the walk.
+await press("R1", 1, 1000);
+assert.ok((await text()).includes("SEARCH"), "R1 opens Applications");
+const firstApp = await focus();
+assert.notEqual(firstApp, "BUTTON", "the first application takes focus");
+console.log("ok  R1 opens Applications on", firstApp);
+shot("0-apps");
+await press("A", 1, 1500);
+await expectFocus("Add to Steam", "picking an application lands on Add to Steam");
+await press("B", 1, 800);
+await expectFocus(firstApp, "B returns to the application it came from");
+for (let i = 0; i < 12 && !(await focus()).startsWith("Files"); i++) await press("UP");
+assert.ok((await focus()).startsWith("Files"), "up reaches the switch");
+await press("A", 1, 1000);
+assert.ok((await text()).includes("Applications") && !(await text()).includes("SEARCH"), "A on the switch flips it");
+console.log("ok  A on the switch flips it");
+await press("R1", 1, 800);
+await press("L1", 1, 1000);
+assert.ok(!(await text()).includes("SEARCH"), "L1 returns to Files");
+console.log("ok  L1 returns to Files");
+for (let i = 0; i < 4 && (await text()).includes("opens here"); i++) await press("B", 1, 800);
 shot("1-places");
 
 // The first row under Places is the last folder picked from. It may or may not have

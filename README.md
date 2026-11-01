@@ -2,11 +2,13 @@
 
 A [Decky Loader](https://decky.xyz) plugin for adding non-Steam games to your library from Game Mode, without going through Desktop Mode.
 
-Open the Quick Access menu, pick the game's file, and it lands in your library with a clean name, the right Proton version and its official artwork.
+Open the Quick Access menu, pick the game's file or an installed application, and it lands in your library with a clean name, the right Proton version and its official artwork.
 
 ## What it does
 
 **Finds the file for you.** The panel has its own file browser. Open a game's folder and the likely executable is marked at the top, while uninstallers, crash reporters and redistributables are moved out of the way. Press X in any folder to make it where new entries open.
+
+**Lists what's installed.** Switch to **Applications** with R1 for Flatpaks, AppImages with a menu entry and anything else the desktop menu knows about. Your own come first, SteamOS's tools are folded away, and search covers both. Anything already in your library says so.
 
 **Names the game properly.** `MoonSweepers.exe` becomes Moon Sweepers. Version numbers and tags like `[Repack]` get dropped, and a generic `start.exe` takes its name from the folder. You can still edit it.
 
@@ -31,7 +33,7 @@ If you were using Add Non-Steam Games, remove it afterwards. The games you added
 ## Using it
 
 1. Open the Quick Access menu and select **Shortcut Forge**.
-2. Browse to the game and press A on it. The likely file is marked with a star.
+2. Browse to the game and press A on it. The likely file is marked with a star. For something installed, press R1 to switch to **Applications**, and L1 to come back. The panel remembers which one you used last.
 3. Press **Add to Steam**, which is already selected. The name, compatibility tool, launch options and collection are right below it if you want to change them.
 
 ### Artwork
