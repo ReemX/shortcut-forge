@@ -9,10 +9,13 @@ import {
 import type { DropdownOption, SingleDropdownOption } from "@decky/ui";
 import { FileSelectionType, definePlugin, openFilePicker, toaster } from "@decky/api";
 import { useEffect, useRef, useState } from "react";
-import { FaArrowRotateLeft, FaBan, FaChevronRight, FaFolderTree, FaGear, FaHammer, FaImage, FaKey, FaPowerOff, FaSliders, FaTerminal, FaThumbtack, FaUpRightFromSquare } from "react-icons/fa6";
+import { FaArrowRotateLeft, FaArrowsRotate, FaBan, FaCircleUp, FaGithub, FaChevronRight, FaFolderTree, FaGear, FaHammer, FaImage, FaKey, FaPowerOff, FaSliders, FaTerminal, FaThumbtack, FaUpRightFromSquare } from "react-icons/fa6";
 
 import {
+  checkForUpdate,
   checkSteamGridDb,
+  getUpdateCheckEnabled,
+  setUpdateCheckEnabled,
   getArtworkSettings,
   getCustomPresets,
   getDefaultFolder,
@@ -35,6 +38,7 @@ import type {
   Locations,
   PathInfo,
   RestartPreference,
+  UpdateCheck,
 } from "./backend";
 import { fetchArtwork } from "./artwork";
 import { PLUGIN_VERSION } from "./version";
@@ -59,6 +63,7 @@ import { LaunchOptionsScreen } from "./LaunchPresetList";
 import { ArtCard, ArtworkScreen, useArtPreview } from "./ArtCard";
 import { countActivePresets, type CustomPreset } from "./launchPresets";
 import { FileBrowser } from "./FileBrowser";
+import { installUpdate } from "./update";
 import { suggestGameName } from "./gameName";
 import { GroupHeading, ListGroup, ListRow, Notice, PrimaryRow, Screen, ScreenHeader, ToggleRow } from "./ListRow";
 import { NEW_COLLECTION, clearSelection, getDraft, updateDraft, useDraft } from "./store";
@@ -125,6 +130,9 @@ function Content() {
   const [busy, setBusy] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [versionWarning, setVersionWarning] = useState("");
+  const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  const [updateChecksOn, setUpdateChecksOn] = useState(true);
+  const [updateStatus, setUpdateStatus] = useState("");
   const [screen, setScreen] = useState<PanelScreen>("main");
   /** The row to put focus back on when a screen closes, so B returns to where you were. */
   const [returnTo, setReturnTo] = useState<PanelScreen>("main");
@@ -156,6 +164,7 @@ function Content() {
     // the panel sits mounted, so re-read them rather than caching from first mount.
     setCollections(listCollections());
     getCompatibilityTools().then(setCompatTools);
+    checkForUpdate(false).then(setUpdate).catch(() => {});
     // Every new entry starts from the default folder, wherever the last one ended.
     if (defaultFolderRef.current && !getDraft().target) updateDraft({ browsePath: defaultFolderRef.current });
     // The key can be saved or changed outside this mounted panel too.
@@ -199,6 +208,7 @@ function Content() {
     getRestartPreference().then(setRestartPreferenceState).catch(() => {});
     getArtworkSettings().then(setArtworkSettings).catch(() => {});
     getCustomPresets().then(setCustomPresets).catch(() => {});
+    getUpdateCheckEnabled().then(setUpdateChecksOn).catch(() => {});
   }, []);
 
   // The compat tool list loads asynchronously, so a file picked before it
@@ -636,6 +646,17 @@ function Content() {
     if (browsePath) applyDefaultFolder(browsePath === defaultFolder ? "" : browsePath);
   };
 
+  const checkUpdateNow = async () => {
+    setUpdateStatus("Checking…");
+    try {
+      const result = await checkForUpdate(true);
+      setUpdate(result);
+      setUpdateStatus(result.error || (result.available ? "" : `v${PLUGIN_VERSION} is the latest.`));
+    } catch (error) {
+      setUpdateStatus(`Could not check: ${message(error)}.`);
+    }
+  };
+
   const settingsScreen = (
     <SettingsScreen
       value={restartPreference}
@@ -646,6 +667,14 @@ function Content() {
       onCheckKey={checkKey}
       defaultFolder={defaultFolder}
       onClearDefaultFolder={() => applyDefaultFolder("")}
+      update={update}
+      updateStatus={updateStatus}
+      updateChecksOn={updateChecksOn}
+      onChangeUpdateChecks={(on) => {
+        setUpdateChecksOn(on);
+        setUpdateCheckEnabled(on).catch(() => {});
+      }}
+      onCheckUpdate={checkUpdateNow}
       onBack={closeScreen}
     />
   );
@@ -661,6 +690,20 @@ function Content() {
       {backendError && <Notice>{backendError}</Notice>}
       {versionWarning && <Notice>{versionWarning}</Notice>}
       {errorBanner}
+
+      {update?.available && (
+        <>
+          <ListGroup>
+            <ListRow
+              icon={<FaCircleUp color="#1a9fff" />}
+              label={`Update to v${update.version}`}
+              subtitle={`You have v${PLUGIN_VERSION}. Your settings stay.`}
+              onSelect={() => installUpdate(update)}
+            />
+          </ListGroup>
+          <div style={{ height: "6px" }} />
+        </>
+      )}
 
       {added && (
         <AddedSection
@@ -975,6 +1018,11 @@ function SettingsScreen({
   onCheckKey,
   defaultFolder,
   onClearDefaultFolder,
+  update,
+  updateStatus,
+  updateChecksOn,
+  onChangeUpdateChecks,
+  onCheckUpdate,
   onBack,
 }: {
   value: RestartPreference;
@@ -987,6 +1035,12 @@ function SettingsScreen({
   /** Where new entries open, or "". */
   defaultFolder: string;
   onClearDefaultFolder(): void;
+  update: UpdateCheck | null;
+  /** The answer to pressing Check for updates, or "". */
+  updateStatus: string;
+  updateChecksOn: boolean;
+  onChangeUpdateChecks(on: boolean): void;
+  onCheckUpdate(): void;
   onBack(): void;
 }) {
   return (
@@ -1051,6 +1105,17 @@ function SettingsScreen({
       <div style={{ padding: "4px 0 8px", fontSize: "11px", opacity: 0.65 }}>
         Steam saves new games right away. A restart only makes the icon appear.
       </div>
+
+      <GroupHeading>Updates</GroupHeading>
+      <ListGroup>
+        {update?.available ? (
+          <ListRow icon={<FaCircleUp color="#1a9fff" />} label={`Update to v${update.version}`} subtitle={`You have v${PLUGIN_VERSION}. Your settings stay.`} onSelect={() => installUpdate(update)} />
+        ) : (
+          <ListRow icon={<FaArrowsRotate />} label="Check for updates" subtitle={updateStatus || `You have v${PLUGIN_VERSION}.`} onSelect={onCheckUpdate} />
+        )}
+        <ToggleRow icon={<FaGithub />} label="Check GitHub automatically" checked={updateChecksOn} onChange={onChangeUpdateChecks} />
+      </ListGroup>
+      <div style={{ height: "10px" }} />
 
       <SavedGames />
     </Screen>

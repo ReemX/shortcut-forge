@@ -107,6 +107,23 @@ export const getCustomPresets = callable<[], CustomPreset[]>("get_custom_presets
 /** Replaces the whole list and resolves with what was actually stored. */
 export const setCustomPresets = callable<[presets: CustomPreset[]], CustomPreset[]>("set_custom_presets");
 
+export interface UpdateCheck {
+  available: boolean;
+  /** The newer version, without a leading "v". */
+  version: string;
+  artifact: string;
+  /** SHA-256 of the zip, which Decky checks before installing it. */
+  hash: string;
+  notes: string;
+  /** Why it could not tell, or "". */
+  error: string;
+}
+
+/** Pass true to ask GitHub now, rather than use a recent answer or respect the setting. */
+export const checkForUpdate = callable<[force: boolean], UpdateCheck>("check_for_update");
+export const getUpdateCheckEnabled = callable<[], boolean>("get_update_check_enabled");
+export const setUpdateCheckEnabled = callable<[value: boolean], void>("set_update_check_enabled");
+
 /** Mirror frontend events into the plugin log so failures are diagnosable. */
 export const log = callable<[level: string, message: string], void>("log");
 

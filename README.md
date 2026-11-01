@@ -24,6 +24,8 @@ In Decky, turn on Developer Mode under Settings, then use **Install Plugin from 
 
 To install by hand, extract the zip into `~/homebrew/plugins/` and run `sudo systemctl restart plugin_loader`.
 
+Shortcut Forge is not in Decky's store, so Decky will not tell you about updates. The plugin does that itself: it asks GitHub for the latest release when the panel opens, at most every few hours, and shows an **Update** row when there is one. Press it, confirm, and Decky checks the download and installs it, keeping your settings. You can turn the check off under **Settings**.
+
 If you were using Add Non-Steam Games, remove it afterwards. The games you added stay in your library, but settings are not carried over, so you will need to enter your SteamGridDB key again.
 
 ## Using it

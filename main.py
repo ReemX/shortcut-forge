@@ -7,6 +7,7 @@ import re
 import shlex
 import ssl
 import stat
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,7 +36,14 @@ NON_EXECUTABLE_EXTENSIONS = {
 SETTINGS_FILENAME = "settings.json"
 
 # Shown in the panel so a stale install is obvious. Keep in sync with package.json.
-PLUGIN_VERSION = "2.0.0"
+PLUGIN_VERSION = "2.1.0"
+
+RELEASES_API = "https://api.github.com/repos/ReemX/shortcut-forge/releases/latest"
+RELEASES_DOWNLOAD = "https://github.com/ReemX/shortcut-forge/releases/download/"
+RELEASES_PAGE = "https://github.com/ReemX/shortcut-forge/releases/latest"
+# Opening the panel should not ask GitHub every time, and it limits anonymous calls.
+UPDATE_CHECK_SECONDS = 6 * 60 * 60
+UPDATE_CHECK_TIMEOUT = 10
 
 CUSTOM_PRESET_MAX_COUNT = 100
 CUSTOM_PRESET_MAX_ALIAS = 80
@@ -513,6 +521,59 @@ def _official_art(steam_entry: dict) -> dict:
     return art
 
 
+def _parse_version(text: object) -> tuple | None:
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", text.strip()) if isinstance(text, str) else None
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def _no_update(**fields) -> dict:
+    return {"available": False, "version": "", "artifact": "", "hash": "", "notes": "", "error": "", **fields}
+
+
+def _read_release(release: object, current: str) -> dict:
+    """What a GitHub release means for this install. Anything odd is simply not an update."""
+    if not isinstance(release, dict):
+        return _no_update(error="GitHub sent an unexpected answer")
+
+    version = _parse_version(release.get("tag_name"))
+    installed = _parse_version(current)
+    if not version or not installed:
+        return _no_update(error="Could not read the version numbers")
+    if version <= installed:
+        return _no_update()
+
+    assets = release.get("assets")
+    for asset in assets if isinstance(assets, list) else []:
+        url = asset.get("browser_download_url") if isinstance(asset, dict) else None
+        # Only ever from this project's own releases, whatever the answer says.
+        if not isinstance(url, str) or not url.startswith(RELEASES_DOWNLOAD) or not url.endswith(".zip"):
+            continue
+        digest = asset.get("digest")
+        checksum = digest[len("sha256:"):] if isinstance(digest, str) and digest.startswith("sha256:") else ""
+        # Decky checks the download against this before installing it.
+        if not re.fullmatch(r"[0-9a-f]{64}", checksum):
+            return _no_update(error="The release has no checksum, so it was not offered")
+        notes = release.get("body")
+        return {
+            **_no_update(),
+            "available": True,
+            "version": ".".join(str(part) for part in version),
+            "artifact": url,
+            "hash": checksum,
+            "notes": notes.strip()[:600] if isinstance(notes, str) else "",
+        }
+    return _no_update(error="The release has no plugin zip")
+
+
+def _fetch_latest_release() -> object:
+    request = urllib.request.Request(RELEASES_API, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": f"shortcut-forge/{PLUGIN_VERSION}",
+    })
+    with urllib.request.urlopen(request, timeout=UPDATE_CHECK_TIMEOUT, context=_ssl_context()) as response:
+        return json.load(response)
+
+
 def _clean_custom_presets(presets) -> list:
     """Only well-formed presets get stored, since the panel trusts what it reads back."""
     cleaned = []
@@ -546,6 +607,8 @@ class Plugin:
         self.settings = self._read_settings()
         # SteamGridDB game id -> its official Steam art, looked up once per add.
         self._official_art: dict = {}
+        self._update_result: dict | None = None
+        self._update_checked = 0.0
         decky.logger.info("Shortcut Forge ready")
 
     async def _unload(self):
@@ -665,6 +728,37 @@ class Plugin:
         decky.logger.info("Restart preference set to %s", value)
 
     # --- Artwork ---------------------------------------------------------
+
+    async def get_update_check_enabled(self) -> bool:
+        return self.settings.get("check_for_updates", True) is not False
+
+    async def set_update_check_enabled(self, value: bool) -> None:
+        self.settings["check_for_updates"] = bool(value)
+        self._write_settings()
+
+    async def check_for_update(self, force: bool = False) -> dict:
+        """
+        Whether GitHub has a newer release. Never raises: not being able to tell is
+        no reason to bother anyone, so a failure only shows when asked directly.
+        """
+        if not force and self.settings.get("check_for_updates", True) is False:
+            return _no_update()
+        now = time.monotonic()
+        if not force and self._update_result and now - self._update_checked < UPDATE_CHECK_SECONDS:
+            return self._update_result
+        try:
+            release = await asyncio.to_thread(_fetch_latest_release)
+            result = _read_release(release, PLUGIN_VERSION)
+        except urllib.error.HTTPError as error:
+            result = _no_update(error=f"GitHub returned HTTP {error.code}")
+        except urllib.error.URLError as error:
+            result = _no_update(error=f"Could not reach GitHub ({_explain_url_error(error.reason)})")
+        except (OSError, ValueError) as error:
+            result = _no_update(error=f"Could not read GitHub's answer ({error})")
+        self._update_result = result
+        self._update_checked = now
+        decky.logger.info("Update check: %s", result["version"] or result["error"] or "up to date")
+        return result
 
     async def get_custom_presets(self) -> list:
         return _clean_custom_presets(self.settings.get("custom_presets"))

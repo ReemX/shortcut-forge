@@ -9,6 +9,7 @@ pnpm run watch     # rebuild on change
 pnpm run package   # produces out/<name>-v<version>.zip, needs the zip command
 pnpm test          # naming and launch preset logic
 python3 -B tests/backend_presets.py   # preset storage, without Decky
+python3 -B tests/backend_update.py    # reading GitHub releases, without Decky
 ```
 
 The frontend lives in `src/`:
@@ -20,6 +21,7 @@ The frontend lives in `src/`:
 - `launchPresets.ts` — the built-in presets, custom presets, and the launch options editing behind both.
 - `LaunchPresetList.tsx` — the launch options screen, and the custom preset editor.
 - `ArtCard.tsx` — the art preview on the form, and the artwork screen.
+- `update.ts` — hands an update to Decky's installer.
 - `LocationList.tsx` — the Places/Drives rows.
 - `ListRow.tsx` — the row, group and disclosure primitives the lists are built from.
 - `ProgressRow.tsx` — the artwork progress bar, drawn from plain elements (see below).

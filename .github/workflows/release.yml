@@ -30,6 +30,7 @@ jobs:
         run: |
           pnpm test
           python3 -B tests/backend_presets.py
+          python3 -B tests/backend_update.py
 
       - name: Build frontend
         run: pnpm run build

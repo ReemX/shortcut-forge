@@ -6,6 +6,11 @@ reading the diff.
 
 Versions before 2.0.0 are from Add Non-Steam Games, the plugin this was forked from.
 
+## v2.1.0
+
+- Shortcut Forge can now update itself. It is not in Decky's store, so Decky never offered updates for it. The plugin now asks GitHub for the latest release when the panel opens, at most every few hours, and shows an **Update** row when there is one. Your settings stay. You can turn the check off under **Settings**.
+- This is the last version you need to install by hand.
+
 ## v2.0.0
 
 The first release as Shortcut Forge. It is installed separately from Add Non-Steam Games, so settings do not carry over and the SteamGridDB key needs entering again. Games already in your library are not affected.
