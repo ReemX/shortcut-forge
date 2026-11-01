@@ -44,24 +44,6 @@ export interface Locations {
   drives: Location[];
 }
 
-/** An installed application, read from its `.desktop` file. */
-export interface Application {
-  name: string;
-  /** Absolute path to the binary. For Flatpak apps this is the flatpak runner. */
-  exe: string;
-  /** Arguments from the desktop entry's Exec, field codes stripped. */
-  args: string;
-  start_dir: string;
-  /** "Flatpak", "Snap", "System" or "User". */
-  source: string;
-  categories: string[];
-  icon_path: string;
-  /** The icon inlined as a data URI, or "" when there is none. */
-  icon_data: string;
-  /** Unique per entry, so it doubles as the React key. */
-  desktop_file: string;
-}
-
 export interface ActionResult {
   success: boolean;
   error?: string;
@@ -77,6 +59,11 @@ export const getStartPath = callable<[], string>("get_start_path");
 
 /** Remember where the user browsed so the picker reopens there next time. */
 export const rememberDirectory = callable<[path: string], void>("remember_directory");
+
+/** Where new entries open, or "" when there is none. */
+export const getDefaultFolder = callable<[], string>("get_default_folder");
+/** Pass "" to clear it. Resolves with what is now the default. */
+export const setDefaultFolder = callable<[path: string], string>("set_default_folder");
 
 /** User directories and mounted drives for the browse sidebar. */
 export const listLocations = callable<[], Locations>("list_locations");
@@ -107,9 +94,6 @@ export interface DirectoryListing {
 
 /** One folder for the file browser, folders first. */
 export const listDirectory = callable<[path: string, showHidden: boolean], DirectoryListing>("list_directory");
-
-/** Installed applications. Cached in the backend; pass true to rescan. */
-export const listApplications = callable<[refresh: boolean], Application[]>("list_applications");
 
 export const inspectPath = callable<[path: string], PathInfo>("inspect_path");
 
@@ -165,6 +149,16 @@ export interface ArtworkSlotResult {
   icon_path: string;
   error: string;
 }
+
+export interface ArtworkPreview extends ArtworkMatch {
+  /** Whether the art is the game's own Steam art rather than the community's. */
+  official: boolean;
+  /** Image URLs for what an add would apply, by kind. Any of them can be missing. */
+  images: { hero?: string; logo?: string; grid?: string; icon?: string };
+}
+
+/** The art an add would apply, to show before adding. Never rejects for a failed search. */
+export const previewArtwork = callable<[searchName: string], ArtworkPreview>("preview_artwork");
 
 export const getArtworkSettings = callable<[], ArtworkSettings>("get_artwork_settings");
 export const setArtworkEnabled = callable<[value: boolean], void>("set_artwork_enabled");

@@ -1,12 +1,15 @@
 import { DialogButton, Focusable } from "@decky/ui";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { FaChevronDown, FaChevronRight } from "react-icons/fa6";
+import { FaChevronDown, FaChevronLeft, FaChevronRight, FaTriangleExclamation } from "react-icons/fa6";
 
 export interface ListRowProps {
-  icon: ReactNode;
+  /** Left out on rows in a long list of the same thing, where it would only be noise. */
+  icon?: ReactNode;
   label: string;
   /** Right-aligned secondary text: free space, app source, and so on. */
   trailing?: string;
+  /** Something other than text at the end of the row. */
+  trailingNode?: ReactNode;
   /** A smaller line under the label. */
   subtitle?: string;
   /**
@@ -21,6 +24,9 @@ export interface ListRowProps {
    * what the press produced rather than from wherever the pressed row went.
    */
   takeFocus?: boolean;
+  /** What X does on this row, named in Steam's button legend at the bottom. */
+  secondaryLabel?: string;
+  onSecondary?(): void;
   onSelect(): void;
 }
 
@@ -105,7 +111,18 @@ function RowLabel({ text, always }: { text: string; always?: boolean }) {
  * panel that makes them large D-pad targets, and keeps a long list scannable
  * without a trackpad.
  */
-export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFocus, onSelect }: ListRowProps) {
+export function ListRow({
+  icon,
+  label,
+  trailing,
+  trailingNode,
+  subtitle,
+  alwaysScroll,
+  takeFocus,
+  secondaryLabel,
+  onSecondary,
+  onSelect,
+}: ListRowProps) {
   const element = useRef<HTMLDivElement>(null);
 
   // Steam moves gamepad focus by focusing the real element, so this is the
@@ -123,6 +140,8 @@ export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFoc
       ref={element}
       className="sf-row"
       onClick={onSelect}
+      onSecondaryButton={onSecondary}
+      onSecondaryActionDescription={secondaryLabel}
       style={{
         display: "flex",
         alignItems: "center",
@@ -138,20 +157,22 @@ export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFoc
         textAlign: "left",
       }}
     >
-      <span
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          width: "20px",
-          height: "20px",
-          fontSize: "15px",
-          opacity: 0.85,
-        }}
-      >
-        {icon}
-      </span>
+      {icon && (
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            width: "20px",
+            height: "20px",
+            fontSize: "15px",
+            opacity: 0.85,
+          }}
+        >
+          {icon}
+        </span>
+      )}
       <span
         style={{
           flex: "1 1 auto",
@@ -162,6 +183,7 @@ export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFoc
         {subtitle && <div style={{ fontSize: "11px", opacity: 0.65, marginTop: "2px" }}>{subtitle}</div>}
       </span>
       {trailing && <span style={{ flexShrink: 0, opacity: 0.6, fontSize: "11px" }}>{trailing}</span>}
+      {trailingNode}
     </DialogButton>
   );
 }
@@ -178,7 +200,7 @@ export function ListGroup({ children, onBack }: { children: ReactNode; onBack?()
       flow-children="vertical"
       onCancelButton={onBack}
       onCancelActionDescription={onBack ? "Back" : undefined}
-      style={{ display: "flex", flexDirection: "column", gap: "3px", padding: "0 16px" }}
+      style={{ display: "flex", flexDirection: "column", gap: "3px" }}
     >
       <style>{MARQUEE_STYLES}</style>
       {children}
@@ -212,5 +234,155 @@ export function DisclosureRow({
         onSelect={onToggle}
       />
     </ListGroup>
+  );
+}
+
+const CONTROL_STYLES = `
+.sf-switch { position: relative; flex-shrink: 0; width: 28px; height: 16px; border-radius: 8px;
+  border: 1.5px solid currentColor; box-sizing: border-box; opacity: .55; transition: opacity 120ms; }
+.sf-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 9px; height: 9px; border-radius: 50%;
+  background: currentColor; transition: transform 120ms; }
+.sf-switch.sf-on { opacity: 1; background: #1a9fff; border-color: #1a9fff; }
+.sf-switch.sf-on::after { transform: translateX(12px); background: #fff; }
+.sf-primary { width: 100%; min-width: 0; height: 40px; min-height: 0; padding: 0 12px; font-size: 15px; font-weight: 600; }
+.sf-primary:not(:focus):not(.gpfocus):not([disabled]) { background: #1a9fff; color: #fff; }
+`;
+
+/** A row with a switch at its end. Same height as every other row, so lists scroll evenly. */
+export function ToggleRow({
+  checked,
+  onChange,
+  onFocused,
+  ...row
+}: Omit<ListRowProps, "onSelect" | "trailing" | "subtitle"> & {
+  checked: boolean;
+  onChange(next: boolean): void;
+  onFocused?(): void;
+}) {
+  return (
+    <div onFocus={onFocused}>
+      <style>{CONTROL_STYLES}</style>
+      <ListRow
+        {...row}
+        trailingNode={<span className={`sf-switch ${checked ? "sf-on" : ""}`} />}
+        onSelect={() => onChange(!checked)}
+      />
+    </div>
+  );
+}
+
+/** The one thing a screen is for. */
+export function PrimaryRow({
+  label,
+  disabled,
+  takeFocus,
+  onSelect,
+}: {
+  label: string;
+  disabled?: boolean;
+  takeFocus?: boolean;
+  onSelect(): void;
+}) {
+  const element = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!takeFocus) return;
+    const frame = requestAnimationFrame(() => element.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [takeFocus]);
+  return (
+    <>
+      <style>{CONTROL_STYLES}</style>
+      <DialogButton ref={element} className="sf-primary" disabled={disabled} onClick={onSelect}>
+        {label}
+      </DialogButton>
+    </>
+  );
+}
+
+export function GroupHeading({ children }: { children: string }) {
+  return (
+    <div
+      style={{
+        padding: "10px 0 3px",
+        fontSize: "11px",
+        lineHeight: "14px",
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        opacity: 0.6,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One screen of the panel. B means "back one step" from anywhere on it, which only
+ * works from the root: a handler on a single row is lost as soon as focus moves off
+ * it, and B then leaves the plugin altogether.
+ */
+export function Screen({
+  onBack,
+  secondaryLabel,
+  onSecondary,
+  children,
+}: {
+  onBack?(): void;
+  /** What X does anywhere on this screen, named in Steam's button legend. */
+  secondaryLabel?: string;
+  onSecondary?(): void;
+  children: ReactNode;
+}) {
+  return (
+    <Focusable
+      onCancelButton={onBack}
+      onCancelActionDescription={onBack ? "Back" : undefined}
+      onSecondaryButton={onSecondary}
+      onSecondaryActionDescription={secondaryLabel}
+      style={{ display: "flex", flexDirection: "column" }}
+    >
+      {children}
+    </Focusable>
+  );
+}
+
+/** A screen's title. Tappable, since the touchscreen has no B button. */
+export function ScreenHeader({
+  title,
+  trailing,
+  onBack,
+}: {
+  title: string;
+  trailing?: string;
+  onBack(): void;
+}) {
+  return (
+    <div
+      onClick={onBack}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        height: "24px",
+        marginBottom: "4px",
+        fontSize: "14px",
+        fontWeight: 600,
+      }}
+    >
+      <FaChevronLeft size={12} style={{ opacity: 0.7 }} />
+      <span style={{ flex: "1 1 auto" }}>{title}</span>
+      {trailing && <span style={{ fontSize: "12px", fontWeight: 400, opacity: 0.7 }}>{trailing}</span>}
+    </div>
+  );
+}
+
+/** A short warning that takes up as little of the screen as it can. */
+export function Notice({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ display: "flex", gap: "6px", alignItems: "baseline", padding: "4px 0", fontSize: "12px", lineHeight: "15px", color: "#e8b23a" }}>
+      <FaTriangleExclamation size={11} style={{ flexShrink: 0 }} />
+      <span>{children}</span>
+    </div>
   );
 }

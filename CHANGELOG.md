@@ -16,12 +16,16 @@ The first release as Shortcut Forge. It is installed separately from Add Non-Ste
 - Better names: `MoonSweepers.exe` becomes Moon Sweepers, tags and versions are dropped, and generic file names use the folder's name.
 - Windows games default to the tool Steam has marked active, then Proton Stable, then Experimental.
 - Choosing None is no longer undone when the panel reopens.
-- The form is shorter, with the less common fields under **More options**, and adding a game you already have gets a warning.
+- The form fits on one screen, with **Add to Steam** selected from the start. Launch options and artwork have their own screens, and B always goes back one step to the row you came from.
+- See the art before adding. The form shows the game's art as soon as it is found, and says whether it is official or community art.
+- Set a default folder by pressing X in it, and every new entry opens there.
+- Adding game shortcuts from the list of installed applications is gone. It is file based now.
+- Adding a game you already have gets a warning.
 - After an add you go straight to the Non-Steam tab. Steam no longer needs a restart for this, so the default is not to ask.
 
 **Launch options**
 
-- 21 named presets for common problems, each saying what it is for and what it costs.
+- 21 named presets for common problems. Moving through the list shows what the selected one is for and what it costs.
 - Your own presets, saved in settings and available for every game.
 
 **Artwork**

@@ -15,12 +15,11 @@ The frontend lives in `src/`:
 
 - `index.tsx` — the Quick Access panel.
 - `store.ts` — the in-progress selection, held outside React (see below).
-- `SourceTabs.tsx` — the Applications/Files switch.
 - `FileBrowser.tsx` — the in-panel file browser.
 - `gameName.ts` — works out a game's name from its file and folder.
 - `launchPresets.ts` — the built-in presets, custom presets, and the launch options editing behind both.
-- `LaunchPresetList.tsx` — the presets section of the form, and the custom preset editor.
-- `AppList.tsx` — the searchable installed-application list.
+- `LaunchPresetList.tsx` — the launch options screen, and the custom preset editor.
+- `ArtCard.tsx` — the art preview on the form, and the artwork screen.
 - `LocationList.tsx` — the Places/Drives rows.
 - `ListRow.tsx` — the row, group and disclosure primitives the lists are built from.
 - `ProgressRow.tsx` — the artwork progress bar, drawn from plain elements (see below).
@@ -37,7 +36,7 @@ The frontend lives in `src/`:
 
 Decky renders plugin content only while the panel is visible, so hiding it destroys the component tree and every bit of React state in it — and opening the file picker hides it. `alwaysRender: true` keeps the tree mounted, and the in-progress selection lives in `store.ts`, a module-level object with a subscription hook, so it survives an unmount even if one happens. Anything that has to outlive a modal belongs there rather than in `useState`.
 
-`main.py` is the Python backend: it inspects picked paths, sets the executable bit, enumerates user directories and drives, stores preferences, fetches artwork and parses `shortcuts.vdf`.
+`main.py` is the Python backend: it inspects picked paths, sets the executable bit, enumerates user directories and drives, lists folders, stores preferences, fetches artwork and parses `shortcuts.vdf`.
 
 ### The plugin's `window` is not the panel's `window`
 
@@ -47,7 +46,6 @@ Plugin JavaScript runs in a different context from the window it renders into. T
 
 Steam paints gamepad focus onto a button's own surface, so an inline `background`, `border` or `box-shadow` outranks it and swallows the highlight — the user can no longer see what pressing A would do. Steam's class names are hashed at build time, so take them from `@decky/ui`'s class modules instead of writing strings.
 
-`SourceTabs` therefore marks the selected tab from inside the button, with an underline and a heavier font in `currentColor`, so selection and focus read independently. `StackedDropdown` puts label, control and description on their own lines, which at Quick Access width would otherwise each wrap to a couple of words.
 
 ### `@decky/ui` components are matched against Steam's bundle
 
@@ -79,6 +77,8 @@ There is no clipboard outside Steam to fall back on: gamescope implements no `wl
 
 ### Testing on a Deck
 
-Steam's CEF debugger listens on port 8080 on the Deck, so `ssh -L 18080:127.0.0.1:8080 deck@steamdeck` lets a script drive the real UI. `tests/deck-cdp-lib.mjs` connects to a target by title (`SharedJSContext`, `QuickAccess_uid2`) and evaluates in it. From `SharedJSContext`, `DeckyBackend.call('loader/call_plugin_method', 'Shortcut Forge', 'method', ...args)` reaches the live backend. Scripted clicks do not exercise the gamepad, so B and D-pad behaviour still needs real hands.
+Steam's CEF debugger listens on port 8080 on the Deck, so `ssh -L 18080:127.0.0.1:8080 deck@steamdeck` lets a script drive the real UI. `tests/deck-cdp-lib.mjs` connects to a target by title (`SharedJSContext`, `QuickAccess_uid2`) and evaluates in it. From `SharedJSContext`, `DeckyBackend.call('loader/call_plugin_method', 'Shortcut Forge', 'method', ...args)` reaches the live backend.
+
+`node tests/deck-journey.mjs` walks the panel with real button presses, sent through `FocusNavController.DispatchVirtualButtonClick`, and takes screenshots with `gamescopectl` into `shots/`. It fails if a screen stops fitting, the list stops moving evenly, or going back takes more presses than it should. It expects an ssh host called `steamdeck`, and a game folder as the first row under Places, which is the folder last picked from. Do not use `element.click()` to drive the UI: focus and the selected highlight then do not behave as they do under a controller, and bugs hide.
 
 Do not edit `settings.json` while the plugin runs: the backend holds it in memory and writes over your change. Restarting `plugin_loader` can also leave another plugin's backend holding its port, so check the other plugins afterwards.

@@ -6,17 +6,17 @@ Open the Quick Access menu, pick the game's file, and it lands in your library w
 
 ## What it does
 
-**Finds the file for you.** The panel has its own file browser. Open a game's folder and the likely executable is marked at the top, while uninstallers, crash reporters and redistributables are moved out of the way. You can also pick from installed applications, Flatpaks included.
+**Finds the file for you.** The panel has its own file browser. Open a game's folder and the likely executable is marked at the top, while uninstallers, crash reporters and redistributables are moved out of the way. Press X in any folder to make it where new entries open.
 
 **Names the game properly.** `MoonSweepers.exe` becomes Moon Sweepers. Version numbers and tags like `[Repack]` get dropped, and a generic `start.exe` takes its name from the folder. You can still edit it.
 
 **Picks a compatibility tool.** Windows games start on the tool Steam has marked active, then Proton Stable, then Proton Experimental. Anything Steam knows about can be chosen instead, and None stays None.
 
-**Applies official art.** With a free SteamGridDB key it uses the game's own Steam assets where they exist, including where the logo is meant to sit, and falls back to community art. If the match is wrong, correct the title and try again.
+**Shows and applies official art.** With a free SteamGridDB key you see the art before adding the game. It uses the game's own Steam assets where they exist, including where the logo is meant to sit, and falls back to community art. If the match is wrong, correct the title and try again.
 
 **Launch option presets.** 21 named fixes for common problems, each saying what it is for and what it costs. They were checked against the Proton 11 script. You can also save your own under **Your presets** and turn them on for any game.
 
-**No restart needed.** After an add the panel closes and you land on the Non-Steam tab. Steam saves new shortcuts within seconds. Only the shortcut's icon waits for a restart, and you can ask for one under Options.
+**No restart needed.** After an add the panel closes and you land on the Non-Steam tab. Steam saves new shortcuts within seconds. Only the shortcut's icon waits for a restart, and you can ask for one under Settings.
 
 ## Installing
 
@@ -29,25 +29,24 @@ If you were using Add Non-Steam Games, remove it afterwards. The games you added
 ## Using it
 
 1. Open the Quick Access menu and select **Shortcut Forge**.
-2. Choose **Applications** or **Files** and pick the game.
-3. Check the name and compatibility tool. Launch options, presets, an artwork title and a collection are under **More options**.
-4. Press **Add to Steam**.
+2. Browse to the game and press A on it. The likely file is marked with a star.
+3. Press **Add to Steam**, which is already selected. The name, compatibility tool, launch options and collection are right below it if you want to change them.
 
 ### Artwork
 
-Create a key at [steamgriddb.com/profile/preferences/api](https://www.steamgriddb.com/profile/preferences/api), then under **Options** turn on **Download artwork** and enter it. The on-screen keyboard's paste key works in that field. The key is checked as soon as it is saved.
+Create a key at [steamgriddb.com/profile/preferences/api](https://www.steamgriddb.com/profile/preferences/api), then enter it under **Settings**. The on-screen keyboard's paste key works in that field. The key is checked as soon as it is saved.
 
-Art is matched by title. When the name you want differs from the real one, put the real title in **Artwork title**. The shortcut keeps your name.
+Art is matched by title and shows at the top of the form before you add anything, with a line saying whether it is official or community art. If it is wrong or missing, press A on it and search under a different title. The shortcut keeps your name.
 
 ### Your own presets
 
-Under **More options → Launch option presets**, press **New preset**, give it a name and enter what you would type into Launch options:
+Under **Launch options**, press **New preset**, give it a name and enter what you would type into Launch options:
 
 ```
 WINEDLLOVERRIDES="dinput8,version=n,b" %command%
 ```
 
-It then has a toggle like the built-in ones. Turning it on merges it into whatever the game's launch options already say, and turning it off takes out only what it added. Presets are stored in the plugin's settings file.
+It then has a toggle like the built-in ones, and pressing X on it edits it. Turning it on merges it into whatever the game's launch options already say, and turning it off takes out only what it added. Presets are stored in the plugin's settings file.
 
 ## Troubleshooting
 
@@ -55,13 +54,13 @@ It then has a toggle like the built-in ones. Turning it on merges it into whatev
 
 **Nothing happens when I launch the game.** Native Linux games need the executable bit. The panel offers **Mark as executable** when it is missing, but a drive mounted `noexec` will refuse it. Windows games need a compatibility tool.
 
-**A game is gone after restarting Steam.** **Options → Load Steam Shortcuts** shows what Steam has saved. This should only follow a crash or power loss right after adding.
+**A game is gone after restarting Steam.** **Settings → Load Steam Shortcuts** shows what Steam has saved. This should only follow a crash or power loss right after adding.
 
 **The key will not paste.** Use the on-screen keyboard's own paste key with the field focused. Typing the key in always works.
 
-**No artwork appeared.** The line under **Last added** says why. Press **Check the artwork key** first. A certificate error almost always means the Deck's clock is wrong.
+**No artwork appeared.** The line under **Last added** says why. Press **Check the key** under **Settings** first. A certificate error almost always means the Deck's clock is wrong.
 
-**Wrong artwork.** The **Last added** line names the title that matched. Correct **Artwork title** and press **Try artwork again**.
+**Wrong artwork.** The **Last added** line names the title that matched. Press A on the art in the form and search under the right title.
 
 Logs are at `~/homebrew/logs/Shortcut Forge/plugin.log`. If that folder does not exist the backend never loaded, and `/tmp/plugin_loader.log` has the rest. Please attach the log when reporting a bug. The API key is never written to it.
 

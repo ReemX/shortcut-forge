@@ -1,4 +1,4 @@
-import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { useEffect, useState } from "react";
 import {
   FaArrowLeft,
@@ -10,12 +10,13 @@ import {
   FaLinux,
   FaStar,
   FaTerminal,
+  FaThumbtack,
   FaWindows,
 } from "react-icons/fa6";
 
 import { listDirectory } from "./backend";
 import type { DirectoryEntry, DirectoryListing } from "./backend";
-import { DisclosureRow, ListGroup, ListRow } from "./ListRow";
+import { DisclosureRow, GroupHeading, ListGroup, ListRow, ToggleRow } from "./ListRow";
 import { formatBytes } from "./LocationList";
 
 /** Rows drawn before a "Show more". A D-pad list longer than this is no use. */
@@ -46,6 +47,8 @@ function displayPath(path: string, home: string): string {
 export function FileBrowser({
   path,
   home,
+  defaultFolder,
+  onToggleDefault,
   onNavigate,
   onExit,
   onPick,
@@ -53,6 +56,9 @@ export function FileBrowser({
 }: {
   path: string;
   home: string;
+  /** Where new entries open, or "". */
+  defaultFolder: string;
+  onToggleDefault(): void;
   onNavigate(path: string): void;
   /** Back to the list of places. */
   onExit(): void;
@@ -97,9 +103,11 @@ export function FileBrowser({
   const goBack = onExit;
 
   return (
-    <PanelSection title={folderTitle(path)}>
-      <div style={{ padding: "0 16px 6px", fontSize: "11px", opacity: 0.6, overflowWrap: "anywhere" }}>
+    <>
+      <GroupHeading>{folderTitle(path)}</GroupHeading>
+      <div style={{ padding: "0 0 6px", fontSize: "11px", opacity: 0.6, overflowWrap: "anywhere" }}>
         {displayPath(path, home)}
+        {path === defaultFolder && " · opens here by default"}
       </div>
 
       {/* Keyed by folder so the D-pad lands on the first row of each new one. */}
@@ -205,6 +213,12 @@ export function FileBrowser({
 
       <div style={{ paddingTop: "6px" }}>
         <ListGroup onBack={goBack}>
+          <ToggleRow
+            icon={<FaThumbtack />}
+            label="Open here by default"
+            checked={path === defaultFolder}
+            onChange={onToggleDefault}
+          />
           <ListRow
             icon={showHidden ? <FaEyeSlash /> : <FaEye />}
             label={showHidden ? "Hide hidden files" : "Show hidden files"}
@@ -212,6 +226,6 @@ export function FileBrowser({
           />
         </ListGroup>
       </div>
-    </PanelSection>
+    </>
   );
 }

@@ -47,17 +47,20 @@ export function formatBytes(bytes: number): string {
 
 interface LocationListProps {
   locations: Location[];
+  /** Put focus on the first row when the list appears, as it does on coming back to it. */
+  takeFocus?: boolean;
   onSelect(location: Location): void;
 }
 
-export function LocationList({ locations, onSelect }: LocationListProps) {
+export function LocationList({ locations, takeFocus, onSelect }: LocationListProps) {
   return (
     <ListGroup>
-      {locations.map((location) => (
+      {locations.map((location, index) => (
         <ListRow
           key={location.path}
           icon={ICONS[location.kind] ?? <FaFolder />}
           label={location.label}
+          takeFocus={takeFocus && index === 0}
           trailing={location.free_bytes === undefined ? undefined : `${formatBytes(location.free_bytes)} free`}
           onSelect={() => onSelect(location)}
         />

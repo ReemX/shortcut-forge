@@ -20,12 +20,8 @@ export interface AddedShortcut {
 /** Dropdown value meaning "create a collection with the name typed below". */
 export const NEW_COLLECTION = "__new__";
 
-/** Which browser the panel is showing. */
-export type Source = "apps" | "files";
-
 /** The in-progress game being added. */
 export interface Draft {
-  source: Source;
   /** Folder open in the file browser, or null for the list of places. */
   browsePath: string | null;
   target: PathInfo | null;
@@ -42,8 +38,6 @@ export interface Draft {
   artworkName: string;
   launchOptions: string;
   compatTool: string;
-  /** Icon file to give the shortcut, taken from the picked application. */
-  iconPath: string;
   /** "" for no collection, `NEW_COLLECTION`, or an existing collection's id. */
   collectionId: string;
   /** Name used when `collectionId` is `NEW_COLLECTION`. */
@@ -52,28 +46,7 @@ export interface Draft {
   addError: string | null;
 }
 
-const SOURCE_KEY = "shortcut-forge.source";
-
-/** Whichever browser was used last, as a convenience that may be unavailable. */
-function readSource(): Source {
-  try {
-    return window.localStorage.getItem(SOURCE_KEY) === "files" ? "files" : "apps";
-  } catch {
-    return "apps";
-  }
-}
-
-export function setSource(source: Source): void {
-  try {
-    window.localStorage.setItem(SOURCE_KEY, source);
-  } catch {
-    // Only means the choice is not remembered next time.
-  }
-  updateDraft({ source });
-}
-
 const EMPTY: Draft = {
-  source: readSource(),
   browsePath: null,
   target: null,
   duplicateOf: "",
@@ -81,7 +54,6 @@ const EMPTY: Draft = {
   artworkName: "",
   launchOptions: "",
   compatTool: "",
-  iconPath: "",
   collectionId: "",
   newCollectionName: "",
   added: null,
@@ -120,8 +92,7 @@ export function clearSelection(): void {
     artworkName: "",
     launchOptions: "",
     compatTool: "",
-    iconPath: "",
-    collectionId: "",
+      collectionId: "",
     newCollectionName: "",
   });
 }

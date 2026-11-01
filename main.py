@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shlex
-import shutil
 import ssl
 import stat
 import urllib.error
@@ -127,47 +126,6 @@ PSEUDO_FILESYSTEMS = {
     "proc", "pstore", "ramfs", "securityfs", "sysfs", "tmpfs", "tracefs",
 }
 
-# Where installed applications advertise themselves, highest precedence first.
-# A desktop file found earlier wins over the same ID found later, per the XDG
-# Desktop Entry spec.
-APPLICATION_DIRS = (
-    ("~/.local/share/applications", "User"),
-    ("~/.local/share/flatpak/exports/share/applications", "Flatpak"),
-    ("/var/lib/flatpak/exports/share/applications", "Flatpak"),
-    ("/var/lib/snapd/desktop/applications", "Snap"),
-    ("/usr/local/share/applications", "System"),
-    ("/usr/share/applications", "System"),
-)
-
-# Icon theme roots, searched in this order for a named icon.
-ICON_DIRS = (
-    "~/.local/share/icons",
-    "~/.icons",
-    "~/.local/share/flatpak/exports/share/icons",
-    "/var/lib/flatpak/exports/share/icons",
-    "/usr/local/share/icons",
-    "/usr/share/icons",
-)
-
-# Directories holding loose icon files, no theme structure.
-PIXMAP_DIRS = ("/usr/share/pixmaps", "/usr/local/share/pixmaps")
-
-# Icon sizes worth showing in a list row, best first. "scalable" is SVG.
-ICON_SIZES = ("128x128", "96x96", "64x64", "scalable", "256x256", "48x48", "32x32")
-
-ICON_MIME_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg"}
-
-# Bigger than this is not worth inlining into a list row.
-MAX_ICON_BYTES = 96 * 1024
-
-# Desktop entry Exec field codes, none of which mean anything to Steam.
-EXEC_FIELD_CODES = re.compile(r"%[fFuUdDnNickvm]")
-
-# Flatpak wraps field codes in @@ ... @@ (or @@u ... @@) inside Exec. The inner
-# group is deliberately free of leading \s* so the two quantifiers cannot
-# backtrack against each other; surrounding space is trimmed afterwards.
-FLATPAK_EXEC_WRAPPER = re.compile(r"@@u?(.*?)@@")
-
 
 # Markers in Steam's binary KeyValues format (shortcuts.vdf).
 VDF_MAP = 0x00
@@ -189,107 +147,6 @@ def _unescape_mount(value: str) -> str:
 def _unescape_udev(value: str) -> str:
     """udev writes by-label symlinks with \\xNN escapes, e.g. 'My\\x20SD'."""
     return re.sub(r"\\x([0-9a-fA-F]{2})", lambda match: chr(int(match.group(1), 16)), value)
-
-
-def _is_true(value: str | None) -> bool:
-    return (value or "").strip().lower() == "true"
-
-
-def _read_desktop_entry(path: str) -> dict:
-    """
-    Read the `[Desktop Entry]` group of a .desktop file.
-
-    Hand-rolled rather than configparser: desktop files routinely contain `%`
-    (which configparser tries to interpolate) and repeated keys for localised
-    values, both of which raise there.
-    """
-    entry: dict = {}
-    in_group = False
-
-    with open(path, "r", encoding="utf-8", errors="replace") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-
-            if line.startswith("["):
-                if in_group:
-                    break  # a later group started; only the first one matters
-                in_group = line == "[Desktop Entry]"
-                continue
-
-            if not in_group or "=" not in line:
-                continue
-
-            key, _, value = line.partition("=")
-            # setdefault keeps the unlocalised key, which always comes first.
-            entry.setdefault(key.strip(), value.strip())
-
-    return entry
-
-
-def _clean_exec(value: str) -> str:
-    """Strip the field codes Steam has no use for out of an Exec line."""
-    without_wrappers = FLATPAK_EXEC_WRAPPER.sub(lambda match: match.group(1).strip(), value)
-    without_codes = EXEC_FIELD_CODES.sub("", without_wrappers)
-    return re.sub(r"\s+", " ", without_codes.replace("%%", "%")).strip()
-
-
-def _resolve_binary(token: str) -> str | None:
-    """Absolute path for an Exec token, or None when it is not installed."""
-    if os.path.isabs(token):
-        return token if os.path.isfile(token) else None
-    return shutil.which(token)
-
-
-def _parse_exec(command: str) -> tuple[str, str] | None:
-    """Split a cleaned Exec line into (executable, arguments)."""
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        tokens = command.split()
-    if not tokens:
-        return None
-
-    executable = _resolve_binary(tokens[0])
-    if not executable:
-        return None
-    return executable, shlex.join(tokens[1:])
-
-
-def _icon_candidates(icon: str):
-    """Every path a named icon could live at, best match first."""
-    for raw_dir in ICON_DIRS:
-        root = os.path.expanduser(raw_dir)
-        try:
-            themes = ["hicolor", *sorted(os.listdir(root))]
-        except OSError:
-            continue
-        for theme in themes:
-            for size in ICON_SIZES:
-                for extension in (".png", ".svg"):
-                    yield os.path.join(root, theme, size, "apps", icon + extension)
-
-    for raw_dir in PIXMAP_DIRS:
-        for extension in (".png", ".svg", ".xpm"):
-            yield os.path.join(raw_dir, icon + extension)
-
-
-def _read_icon_data(path: str) -> str:
-    """Inline an icon as a data URI so the panel can render it directly."""
-    mime = ICON_MIME_TYPES.get(os.path.splitext(path)[1].lower())
-    if not mime:
-        return ""
-
-    try:
-        if os.path.getsize(path) > MAX_ICON_BYTES:
-            return ""
-        with open(path, "rb") as handle:
-            payload = base64.b64encode(handle.read()).decode("ascii")
-    except OSError:
-        return ""
-
-    return f"data:{mime};base64,{payload}"
 
 
 def _parse_binary_vdf(data: bytes) -> dict:
@@ -687,9 +544,6 @@ class Plugin:
     async def _main(self):
         self.settings_path = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, SETTINGS_FILENAME)
         self.settings = self._read_settings()
-        # Scanning every .desktop file is too slow to repeat on each panel open.
-        self._applications: list | None = None
-        self._icon_cache: dict = {}
         # SteamGridDB game id -> its official Steam art, looked up once per add.
         self._official_art: dict = {}
         decky.logger.info("Shortcut Forge ready")
@@ -717,6 +571,21 @@ class Plugin:
         self.settings["last_directory"] = directory
         self._write_settings()
 
+    async def get_default_folder(self) -> str:
+        """Where new entries open, or "" when unset or not there right now, like an SD card."""
+        folder = self.settings.get("default_folder")
+        return folder if isinstance(folder, str) and os.path.isdir(folder) else ""
+
+    async def set_default_folder(self, path: str) -> str:
+        """Pass "" to clear it. Resolves with what is now the default."""
+        folder = os.path.abspath(path) if path else ""
+        if folder and not os.path.isdir(folder):
+            return await self.get_default_folder()
+        self.settings["default_folder"] = folder
+        self._write_settings()
+        decky.logger.info("Default folder %s", folder or "cleared")
+        return folder
+
     async def list_locations(self) -> dict:
         """The sidebar: recent folder, home and user directories, and mounted drives."""
         recent = self.settings.get("last_directory")
@@ -735,18 +604,6 @@ class Plugin:
         """One folder for the file browser. A read failure comes back as `error`."""
         return await asyncio.to_thread(_list_directory, path, show_hidden)
 
-    async def list_applications(self, refresh: bool = False) -> list:
-        """
-        Installed applications, from the same `.desktop` files the desktop menu
-        reads — native, Flatpak and Snap alike.
-
-        Scanning parses a few hundred small files and inlines icons, so the
-        result is cached until the caller explicitly asks for a refresh.
-        """
-        if refresh or self._applications is None:
-            self._applications = self._scan_applications()
-            decky.logger.info("Found %d applications", len(self._applications))
-        return self._applications
 
     # --- Picked file -----------------------------------------------------
 
@@ -875,6 +732,42 @@ class Plugin:
 
         decky.logger.info('Artwork search for "%s" matched %s (%s)', name, game["name"], game["id"])
         return {"found": True, "game_id": int(game["id"]), "game_name": str(game["name"]), "error": ""}
+
+    async def preview_artwork(self, search_name: str) -> dict:
+        """What an add would apply for this title, as URLs the panel can show directly."""
+        match = await self.find_artwork(search_name)
+        if not match["found"]:
+            return {**match, "official": False, "images": {}}
+        key = str(self.settings.get("steamgriddb_key") or "").strip()
+        images, official = await asyncio.to_thread(self._preview_images, match["game_id"], key)
+        return {**match, "official": official, "images": images}
+
+    def _preview_images(self, game_id: int, key: str) -> tuple:
+        """Follows the same order as `_fetch_slot`, so the preview is what gets applied."""
+        official_urls = self._official_art_for(game_id, key).get("urls", {})
+        images = {}
+        for label, endpoint, _suffix, dimensions, _asset_type in ARTWORK_KINDS:
+            if label == "wide grid":
+                continue
+            if official_urls.get(label):
+                images[label] = official_urls[label]
+                continue
+            params = {"types": "static"}
+            if dimensions:
+                params["dimensions"] = dimensions
+            try:
+                assets = []
+                if endpoint in OFFICIAL_STYLE_ENDPOINTS:
+                    assets = _sgdb_request(key, f"{endpoint}/game/{game_id}", {**params, "styles": "official"})
+                if not assets:
+                    assets = _sgdb_request(key, f"{endpoint}/game/{game_id}", params)
+            except RuntimeError as error:
+                decky.logger.warning("No %s preview: %s", label, error)
+                continue
+            url = assets[0].get("thumb") or assets[0].get("url") if assets else ""
+            if isinstance(url, str) and url:
+                images[label] = url
+        return images, bool(official_urls)
 
     async def download_artwork_slot(self, app_id: int, game_id: int, slot: str) -> dict:
         """
@@ -1142,92 +1035,7 @@ class Plugin:
                     found.append(resolved)
         return found
 
-    # --- Internals: applications -----------------------------------------
 
-    def _scan_applications(self) -> list:
-        found = {}
-
-        for raw_dir, source in APPLICATION_DIRS:
-            root = os.path.expanduser(raw_dir)
-            if not os.path.isdir(root):
-                continue
-
-            for directory, _, filenames in os.walk(root):
-                for filename in filenames:
-                    if not filename.endswith(".desktop"):
-                        continue
-
-                    path = os.path.join(directory, filename)
-                    # The desktop ID is the path below the root with separators
-                    # turned into dashes; it is what makes entries comparable
-                    # across directories.
-                    desktop_id = os.path.relpath(path, root).replace(os.sep, "-")
-                    if desktop_id in found:
-                        continue  # an earlier, higher-precedence directory won
-
-                    application = self._read_application(path, source)
-                    if application:
-                        found[desktop_id] = application
-
-        return sorted(found.values(), key=lambda app: app["name"].lower())
-
-    def _read_application(self, path: str, source: str) -> dict | None:
-        try:
-            entry = _read_desktop_entry(path)
-        except OSError as error:
-            decky.logger.debug("Skipping %s: %s", path, error)
-            return None
-
-        if entry.get("Type", "Application") != "Application":
-            return None
-        if _is_true(entry.get("NoDisplay")) or _is_true(entry.get("Hidden")):
-            return None
-
-        name = entry.get("Name", "").strip()
-        command = _clean_exec(entry.get("Exec", ""))
-        if not name or not command:
-            return None
-
-        # TryExec names the binary that decides whether the entry is installed.
-        try_exec = entry.get("TryExec", "").strip()
-        if try_exec and not _resolve_binary(try_exec):
-            return None
-
-        parsed = _parse_exec(command)
-        if not parsed:
-            return None
-        executable, arguments = parsed
-
-        working_dir = entry.get("Path", "").strip() or os.path.dirname(executable)
-        icon_path = self._resolve_icon(entry.get("Icon", "").strip())
-
-        return {
-            "name": name,
-            "exe": executable,
-            "args": arguments,
-            "start_dir": working_dir,
-            "source": source,
-            "categories": [c for c in entry.get("Categories", "").split(";") if c],
-            "icon_path": icon_path or "",
-            "icon_data": _read_icon_data(icon_path) if icon_path else "",
-            "desktop_file": path,
-        }
-
-    def _resolve_icon(self, icon: str) -> str | None:
-        """Turn a desktop entry's Icon value into a real file path."""
-        if not icon:
-            return None
-        if os.path.isabs(icon):
-            return icon if os.path.isfile(icon) else None
-        if icon in self._icon_cache:
-            return self._icon_cache[icon]
-
-        resolved = next(
-            (path for path in _icon_candidates(icon) if os.path.isfile(path)),
-            None,
-        )
-        self._icon_cache[icon] = resolved
-        return resolved
 
     # --- Internals: places and drives ------------------------------------
 

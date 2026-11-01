@@ -1,4 +1,4 @@
-import { ButtonItem, Field, Navigation, PanelSectionRow } from "@decky/ui";
+import { Field, Navigation, PanelSectionRow } from "@decky/ui";
 import { useMemo, useState } from "react";
 import { FaChevronDown, FaGamepad } from "react-icons/fa6";
 
@@ -99,19 +99,16 @@ export function SavedGames() {
 
   return (
     <>
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          disabled={busy}
-          description={
-            summary ??
-            "Show the shortcuts Steam has saved to disk."
-          }
-          onClick={onCheck}
-        >
-          {busy ? "Loading…" : "Load Steam Shortcuts"}
-        </ButtonItem>
-      </PanelSectionRow>
+      <ListGroup>
+        <ListRow
+          icon={<FaGamepad />}
+          label={busy ? "Loading…" : "Load Steam Shortcuts"}
+          subtitle={summary ?? "What Steam has saved to disk."}
+          onSelect={() => {
+            if (!busy) onCheck();
+          }}
+        />
+      </ListGroup>
 
       {/* Set off on both sides: flush against the row above it the toggle reads
           as part of that button, and flush against the list below it as the
