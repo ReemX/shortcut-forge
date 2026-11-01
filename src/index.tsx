@@ -12,16 +12,16 @@ import {
 import type { DropdownOption, SingleDropdownOption } from "@decky/ui";
 import { FileSelectionType, definePlugin, openFilePicker, toaster } from "@decky/api";
 import { useEffect, useRef, useState } from "react";
-import { FaPlus } from "react-icons/fa6";
+import { FaArrowLeft, FaPlus } from "react-icons/fa6";
 
 import {
   checkSteamGridDb,
   getArtworkSettings,
   getRestartPreference,
-  getStartPath,
   inspectPath,
   listApplications,
   listLocations,
+  listSavedShortcuts,
   log,
   makeExecutable,
   ping,
@@ -59,10 +59,18 @@ import {
   setShortcutIcon,
 } from "./steam";
 import type { CollectionSummary, CompatibilityTool } from "./steam";
-import { NEW_COLLECTION, clearSelection, getDraft, updateDraft, useDraft } from "./store";
+import { LaunchPresets } from "./LaunchPresetList";
+import { countActivePresets } from "./launchPresets";
+import { FileBrowser } from "./FileBrowser";
+import { suggestGameName } from "./gameName";
+import { DisclosureRow, ListGroup, ListRow } from "./ListRow";
+import { NEW_COLLECTION, clearSelection, getDraft, setSource, updateDraft, useDraft } from "./store";
 import type { AddedShortcut } from "./store";
 
 const NO_COMPAT_TOOL = "";
+
+/** The library's Non-Steam tab. "DesktopApps" is Steam's own id for it. */
+const NON_STEAM_TAB = "/library/tab/DesktopApps";
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -93,6 +101,8 @@ function Content() {
   // panel being unmounted while the file picker is open. See ./store.
   const {
     source,
+    browsePath,
+    duplicateOf,
     target,
     name,
     artworkName,
@@ -108,15 +118,15 @@ function Content() {
   const [locations, setLocations] = useState<Locations | null>(null);
   const [applications, setApplications] = useState<Application[] | null>(null);
   const [applicationsFailed, setApplicationsFailed] = useState(false);
-  const [startPath, setStartPath] = useState("");
   const [compatTools, setCompatTools] = useState<CompatibilityTool[]>([]);
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
-  const [restartPreference, setRestartPreferenceState] = useState<RestartPreference>("ask");
+  const [restartPreference, setRestartPreferenceState] = useState<RestartPreference>("never");
   const [artworkSettings, setArtworkSettings] = useState<ArtworkSettings>(ARTWORK_UNKNOWN);
   const [keyStatus, setKeyStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [versionWarning, setVersionWarning] = useState("");
+  const [moreOptions, setMoreOptions] = useState(false);
 
   const panelVisible = usePanelVisible();
   const topAnchor = useRef<HTMLDivElement>(null);
@@ -127,6 +137,8 @@ function Content() {
     // the panel sits mounted, so re-read them rather than caching from first mount.
     setCollections(listCollections());
     getCompatibilityTools().then(setCompatTools);
+    // The key can be saved or changed outside this mounted panel too.
+    refreshArtworkSettings().catch(() => {});
     // One frame later, so the panel has laid out before we reset it.
     const frame = requestAnimationFrame(() => scrollToTop(topAnchor.current));
     return () => cancelAnimationFrame(frame);
@@ -168,20 +180,25 @@ function Content() {
         }
       })
       .catch(() => {});
-    getStartPath().then(setStartPath).catch(() => {});
     getRestartPreference().then(setRestartPreferenceState).catch(() => {});
     getArtworkSettings().then(setArtworkSettings).catch(() => {});
   }, []);
 
   // The compat tool list loads asynchronously, so a file picked before it
   // arrives gets its Proton default applied here instead.
+  // Once per file: the list is re-read whenever the panel opens, and that must not
+  // undo someone choosing None on purpose.
+  const defaultedTarget = useRef<PathInfo | null>(null);
   useEffect(() => {
-    if (target?.is_windows_app && compatTool === NO_COMPAT_TOOL && compatTools.length > 0) {
+    if (!target || compatTools.length === 0 || defaultedTarget.current === target) return;
+    defaultedTarget.current = target;
+    if (target.is_windows_app && compatTool === NO_COMPAT_TOOL) {
       updateDraft({ compatTool: pickDefaultCompatTool(compatTools) });
     }
   }, [compatTools, target]);
 
-  const browseAt = async (path: string) => {
+  /** Steam's full-screen picker, for when the plugin's backend cannot list folders. */
+  const openSystemPicker = async (path: string) => {
     let picked: { path: string; realpath: string };
     try {
       picked = await openFilePicker(
@@ -198,28 +215,41 @@ function Content() {
       return; // the picker rejects when the user backs out
     }
 
+    await onFilePicked(picked.path);
+  };
+
+  const onFilePicked = async (path: string) => {
     // The backend describes the file better than we can, but a backend problem
     // must never strand the user on a picker that appears to do nothing.
     let info: PathInfo;
     try {
-      info = await inspectPath(picked.path);
+      info = await inspectPath(path);
       setBackendError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[add-non-steam-games] inspect_path failed", error);
       setBackendError(`The plugin's Python backend is not responding (${message}).`);
-      info = describePathLocally(picked.path);
+      info = describePathLocally(path);
     }
 
     updateDraft({
       added: null,
       addError: null,
       target: info,
-      name: info.suggested_name,
+      duplicateOf: "",
+      name: suggestGameName(info.path),
       compatTool: info.is_windows_app ? pickDefaultCompatTool(compatTools) : NO_COMPAT_TOOL,
     });
+    setMoreOptions(false);
 
-    setStartPath(info.directory);
+    // Steam saves a new shortcut within seconds, so this includes recent adds.
+    listSavedShortcuts()
+      .then((saved) => {
+        const match = saved.shortcuts.find((shortcut) => shortcut.exe === info.path);
+        if (match && getDraft().target === info) updateDraft({ duplicateOf: match.name });
+      })
+      .catch(() => {});
+
     rememberDirectory(info.directory)
       .then(() => listLocations().then(setLocations))
       .catch(() => {});
@@ -241,7 +271,6 @@ function Content() {
         is_dir: false,
         directory: application.start_dir,
         extension: "",
-        suggested_name: application.name,
         is_windows_app: false,
         is_executable: true,
         looks_launchable: true,
@@ -251,7 +280,9 @@ function Content() {
       launchOptions: application.args,
       compatTool: NO_COMPAT_TOOL,
       iconPath: application.icon_path,
+      duplicateOf: "",
     });
+    setMoreOptions(false);
   };
 
   const onMakeExecutable = async () => {
@@ -271,14 +302,14 @@ function Content() {
   };
 
   /**
-   * Offer, or take, the restart that makes the new shortcut permanent.
+   * Offer, or take, the restart that makes the new shortcut's icon appear.
    *
    * `hold` stops an automatic restart. Something went wrong that the panel is
    * currently explaining, and restarting Steam takes the explanation with it —
    * which is how "it added the game and did nothing else" happens.
    */
   const promptRestart = async (gameName: string, hold = false) => {
-    const preference = await getRestartPreference().catch(() => "ask" as RestartPreference);
+    const preference = await getRestartPreference().catch(() => "never" as RestartPreference);
 
     if (preference === "always") {
       if (hold) return;
@@ -432,6 +463,7 @@ function Content() {
           artworkProgress: null,
         },
         target: null,
+        browsePath: null,
         name: "",
         artworkName: "",
         launchOptions: "",
@@ -450,6 +482,15 @@ function Content() {
       // wherever the form's button was — and the artwork progress that appears
       // there is the only thing on screen saying the download is happening.
       scrollToTop(topAnchor.current);
+
+      // Show the game where it landed straight away. The panel stays mounted, so
+      // artwork carries on and appears in the library as it arrives. Waiting for
+      // it left several idle-looking seconds in which B walked up the folders.
+      // Only a shortcut Steam did not confirm keeps the panel open, to say so.
+      if (result.verified) {
+        Navigation.Navigate(NON_STEAM_TAB);
+        Navigation.CloseSideMenus();
+      }
 
       // Read the settings back instead of trusting what was loaded at mount: if
       // that one read failed, artwork would be skipped for the rest of the
@@ -577,6 +618,9 @@ function Content() {
   const collectionReady = collectionId !== NEW_COLLECTION || Boolean(newCollectionName.trim());
   const canAdd = !busy && Boolean(name.trim()) && collectionReady;
 
+  const moreOptionsSet =
+    countActivePresets(launchOptions) + (artworkName.trim() ? 1 : 0) + (collectionId ? 1 : 0);
+
   const needsExecutableBit = Boolean(
     target && target.exists && !target.is_dir && !target.is_windows_app && !target.is_executable,
   );
@@ -584,7 +628,7 @@ function Content() {
   const places = locations
     ? [...(locations.recent ? [locations.recent] : []), ...locations.places]
     : [];
-  const onLocationSelected = (location: Location) => browseAt(location.path);
+  const onLocationSelected = (location: Location) => updateDraft({ browsePath: location.path });
 
   // A failed add leaves the form on screen, a successful one returns to
   // browsing, so this has to render in both.
@@ -641,7 +685,7 @@ function Content() {
         {/* Titled, so the segmented control below it reads as a choice of what
             to browse rather than two loose buttons. */}
         <PanelSection title="Browse">
-          <SourceTabs value={source} onChange={(next) => updateDraft({ source: next })} />
+          <SourceTabs value={source} onChange={setSource} />
         </PanelSection>
 
         {source === "apps" ? (
@@ -650,6 +694,15 @@ function Content() {
             failed={applicationsFailed}
             onSelect={onApplicationSelected}
             onRefresh={() => loadApplications(true)}
+          />
+        ) : browsePath ? (
+          <FileBrowser
+            path={browsePath}
+            home={locations?.places.find((place) => place.kind === "home")?.path ?? ""}
+            onNavigate={(next) => updateDraft({ browsePath: next })}
+            onExit={() => updateDraft({ browsePath: null })}
+            onPick={onFilePicked}
+            onSystemPicker={() => openSystemPicker(browsePath)}
           />
         ) : (
           <>
@@ -675,8 +728,8 @@ function Content() {
 
             <PanelSection>
               <PanelSectionRow>
-                <ButtonItem layout="below" onClick={() => browseAt(startPath || "/")}>
-                  Browse from anywhere
+                <ButtonItem layout="below" onClick={() => updateDraft({ browsePath: "/" })}>
+                  Browse the whole Deck
                 </ButtonItem>
               </PanelSectionRow>
             </PanelSection>
@@ -696,12 +749,19 @@ function Content() {
     <>
       {errorBanner}
 
-      <PanelSection title="Game">
-        <PanelSectionRow>
-          <Field label="Selected" childrenLayout="below" bottomSeparator="standard">
-            <div style={{ fontSize: "11px", wordBreak: "break-all", opacity: 0.8 }}>{target.path}</div>
-          </Field>
-        </PanelSectionRow>
+      <PanelSection title="Add game">
+        <ListGroup onBack={clearSelection}>
+          <ListRow icon={<FaArrowLeft />} label="Choose a different file" takeFocus onSelect={clearSelection} />
+        </ListGroup>
+        <div style={{ padding: "8px 16px 4px", fontSize: "11px", opacity: 0.7, overflowWrap: "anywhere" }}>
+          {target.path}
+        </div>
+
+        {duplicateOf && (
+          <PanelSectionRow>
+            <Field description={`Already in your library as "${duplicateOf}". Adding it again makes a second shortcut.`} />
+          </PanelSectionRow>
+        )}
 
         {!target.looks_launchable && (
           <PanelSectionRow>
@@ -725,14 +785,6 @@ function Content() {
         )}
 
         <PanelSectionRow>
-          <ButtonItem layout="below" disabled={busy} onClick={clearSelection}>
-            Choose a different file
-          </ButtonItem>
-        </PanelSectionRow>
-      </PanelSection>
-
-      <PanelSection title="Details">
-        <PanelSectionRow>
           <TextEntry
             label="Name"
             value={name}
@@ -740,27 +792,6 @@ function Content() {
             description="Shown in your Steam library."
           />
         </PanelSectionRow>
-
-        {artworkSettings.enabled && (
-          artworkSettings.key ? (
-            <PanelSectionRow>
-              <TextEntry
-                label="Artwork title"
-                value={artworkName}
-                onChange={(next) => updateDraft({ artworkName: next })}
-                description="Optional. The game's real title, if the name above is not one SteamGridDB would know."
-              />
-            </PanelSectionRow>
-          ) : (
-            <PanelSectionRow>
-              <Field
-                label="Artwork"
-                padding="compact"
-                description={`Add a SteamGridDB API key under Options to download artwork automatically. Get one at ${artworkSettings.key_url}.`}
-              />
-            </PanelSectionRow>
-          )
-        )}
 
         <StackedDropdown
           label="Compatibility"
@@ -777,37 +808,77 @@ function Content() {
         />
 
         <PanelSectionRow>
-          <TextEntry
-            label="Launch options"
-            value={launchOptions}
-            onChange={(next) => updateDraft({ launchOptions: next })}
-            description="Optional. Use %command% to wrap the executable."
-          />
-        </PanelSectionRow>
-
-        <StackedDropdown
-          label="Collection"
-          description="Optional. Which library collection to file this under."
-          rgOptions={collectionOptions}
-          selectedOption={collectionId}
-          onChange={(option) => updateDraft({ collectionId: option.data as string })}
-        />
-
-        {collectionId === NEW_COLLECTION && (
-          <PanelSectionRow>
-            <TextEntry
-              label="New collection name"
-              value={newCollectionName}
-              onChange={(next) => updateDraft({ newCollectionName: next })}
-            />
-          </PanelSectionRow>
-        )}
-
-        <PanelSectionRow>
           <ButtonItem layout="below" disabled={!canAdd} onClick={onAddToSteam}>
             {busy ? "Adding…" : "Add to Steam"}
           </ButtonItem>
         </PanelSectionRow>
+
+        <div style={{ paddingTop: "6px" }}>
+          <DisclosureRow
+            label="More options"
+            trailing={moreOptionsSet > 0 ? `${moreOptionsSet} set` : undefined}
+            expanded={moreOptions}
+            onToggle={() => setMoreOptions(!moreOptions)}
+          />
+        </div>
+
+        {moreOptions && (
+          <>
+            {artworkSettings.enabled && (
+              artworkSettings.key ? (
+                <PanelSectionRow>
+                  <TextEntry
+                    label="Artwork title"
+                    value={artworkName}
+                    onChange={(next) => updateDraft({ artworkName: next })}
+                    description="Optional. The game's real title, if the name above is not one SteamGridDB would know."
+                  />
+                </PanelSectionRow>
+              ) : (
+                <PanelSectionRow>
+                  <Field
+                    label="Artwork"
+                    padding="compact"
+                    description={`Add a SteamGridDB API key under Options to download artwork automatically. Get one at ${artworkSettings.key_url}.`}
+                  />
+                </PanelSectionRow>
+              )
+            )}
+
+            <PanelSectionRow>
+              <TextEntry
+                label="Launch options"
+                value={launchOptions}
+                onChange={(next) => updateDraft({ launchOptions: next })}
+                description="Optional. Use %command% to wrap the executable."
+              />
+            </PanelSectionRow>
+
+            <LaunchPresets
+              options={launchOptions}
+              usesProton={compatTool !== NO_COMPAT_TOOL}
+              onChange={(next) => updateDraft({ launchOptions: next })}
+            />
+
+            <StackedDropdown
+              label="Collection"
+              description="Optional. Which library collection to file this under."
+              rgOptions={collectionOptions}
+              selectedOption={collectionId}
+              onChange={(option) => updateDraft({ collectionId: option.data as string })}
+            />
+
+            {collectionId === NEW_COLLECTION && (
+              <PanelSectionRow>
+                <TextEntry
+                  label="New collection name"
+                  value={newCollectionName}
+                  onChange={(next) => updateDraft({ newCollectionName: next })}
+                />
+              </PanelSectionRow>
+            )}
+          </>
+        )}
       </PanelSection>
     </>
   );
@@ -856,13 +927,9 @@ function StackedDropdown({
         </Field>
       </PanelSectionRow>
       {description && (
-        <PanelSectionRow>
-          {/* Indented, so it reads as a note belonging to the control above it
-              rather than as the next thing in the section. */}
-          <div style={{ paddingLeft: "8px" }}>
-            <Field description={description} padding="compact" />
-          </div>
-        </PanelSectionRow>
+        // Plain text rather than a Field, whose own padding pushed this out of
+        // line with the control it describes.
+        <div style={{ padding: "4px 16px 10px", fontSize: "12px", opacity: 0.7 }}>{description}</div>
       )}
     </>
   );
@@ -937,7 +1004,7 @@ function AddedSection({
       {progress && (
         <ProgressRow
           label="Artwork"
-          description="Downloading from SteamGridDB. Steam restarts once this is done."
+          description="Downloading from SteamGridDB."
           done={progress.done}
           total={progress.total}
           status={
@@ -1031,11 +1098,21 @@ function OptionsSection({
   keyStatus: string;
   onCheckKey(): void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <PanelSection title="Options">
+    <PanelSection>
+      <DisclosureRow
+        label="Options"
+        trailing={artwork.enabled && !artwork.key.trim() ? "Artwork key missing" : undefined}
+        expanded={expanded}
+        onToggle={() => setExpanded(!expanded)}
+      />
+      {expanded && (
+        <>
       <StackedDropdown
         label="Restart Steam after adding"
-        description="Steam requires a client (soft) restart to save shortcuts."
+        description="Steam saves new games right away. A restart only makes the icon appear."
         rgOptions={[
           { data: "ask", label: "Ask each time" },
           { data: "always", label: "Always restart" },
@@ -1095,6 +1172,8 @@ function OptionsSection({
       )}
 
       <SavedGames />
+        </>
+      )}
     </PanelSection>
   );
 }

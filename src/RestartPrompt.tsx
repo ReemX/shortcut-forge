@@ -12,8 +12,9 @@ interface RestartPromptProps {
 }
 
 /**
- * Asked after a game is added, because Steam only writes `shortcuts.vdf` during
- * a clean shutdown — until then the new game lives in memory only.
+ * Asked after a game is added when the user chose "Ask each time". The game is
+ * already saved by then; a shortcut's icon is the one thing Steam only reads at
+ * startup.
  */
 export function RestartPrompt({ gameName, onDecision, closeModal }: RestartPromptProps) {
   const [remember, setRemember] = useState(false);
@@ -21,7 +22,7 @@ export function RestartPrompt({ gameName, onDecision, closeModal }: RestartPromp
   return (
     <ConfirmModal
       strTitle="Restart Steam?"
-      strDescription={`"${gameName}" is in your library now, but Steam only saves non-Steam games to disk when it shuts down. Restarting now makes it permanent.`}
+      strDescription={`"${gameName}" is in your library and saved. Restarting Steam makes its icon appear, and nothing else depends on it.`}
       strOKButtonText="Restart now"
       strCancelButtonText="Not now"
       closeModal={closeModal}

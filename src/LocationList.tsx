@@ -34,7 +34,7 @@ const ICONS: Record<Location["kind"], ReactNode> = {
 };
 
 /** "14.2 GB" — one decimal place is enough at a glance on a handheld. */
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB", "TB"];
   let value = bytes;
   let unit = 0;

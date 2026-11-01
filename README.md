@@ -15,7 +15,7 @@ Normally adding a shortcut means switching to Desktop Mode, opening the Steam cl
 3. Adjust the name, pick a compatibility tool if the game is a Windows `.exe`, and add launch options, an **Artwork title** or a **Collection** if you want them.
 4. Press **Add to Steam**.
 
-The game appears in your library immediately, and the plugin then asks to restart Steam. **Steam only writes its non-Steam game list to disk when it shuts down**, so a game added without a restart is lost if Steam is killed or the Deck loses power. Answer once with *Remember my choice* and it stops asking; change your mind later under **Options → Restart Steam after adding**. **Options → Check saved games** lists what is actually on disk, if you are ever unsure a game stuck.
+The plugin then takes you to the library's **Non-Steam** tab, where the game is waiting. Steam saves it within seconds, so no restart is needed; one only makes the shortcut's icon appear. To be asked each time, or to restart automatically, change **Options → Restart Steam after adding**. **Options → Load Steam Shortcuts** lists what is actually on disk, if you are ever unsure a game stuck.
 
 **Open game page** jumps straight to the new game, and **Undo** removes it again if you picked the wrong file. Everything is a plain vertical list of full-width rows, so the whole flow is D-pad navigable without a trackpad.
 
@@ -60,7 +60,7 @@ Field codes (`%U`, `%f`, Flatpak's `@@u … @@` wrappers) are stripped, and the 
 
 ## Troubleshooting
 
-**A game I added is gone after restarting Steam.** It was never committed to disk. Use **Options → Check saved games** to confirm, then re-add and choose **Restart now** when prompted.
+**A game I added is gone after restarting Steam.** Use **Options → Load Steam Shortcuts** to see what Steam saved, then add it again. Steam writes a new shortcut within seconds, so this should only follow a crash or power loss right after adding.
 
 **The plugin said "Added, but not confirmed".** Steam accepted the shortcut but did not read it back with the executable we asked for, which usually means the Steam client is in a bad state. Restart Steam and add the game again.
 
@@ -160,7 +160,7 @@ There is no clipboard outside Steam to fall back on: gamescope implements no `wl
 - `AddShortcut` is called as `AddShortcut(name, exe, "", "")` — name and exe only, since some builds return `0` when given a start dir or launch options. Those are written afterwards with the `Set*` calls, which silently do nothing until `appStore` knows the app, hence the poll between them.
 - **The target must be quoted; the start directory must not.** An unquoted target produces a shortcut that looks right in the library and then fails to launch. Confirmed on hardware.
 - `Set*` calls return nothing, so the shortcut is read back through `RegisterForAppDetails` and compared against what was asked for; a mismatch is surfaced to the user rather than swallowed.
-- Nothing persists until Steam shuts down cleanly, and `SteamClient.User.StartRestart(false)` is the only way to force that from Game Mode.
+- On current clients the shortcut, its launch options and its compatibility tool all reach disk within seconds (`shortcuts.vdf` and `config.vdf`), so no restart is needed. Older documentation saying otherwise is out of date. `SteamClient.User.StartRestart(false)` is still how to restart from Game Mode, which makes a new icon appear.
 - Collections go through the untyped `collectionStore` global: `NewUnsavedCollection(name, undefined, [])`, then `AsDragDropCollection().AddApps([overview])` and `await Save()`. `AddApps` takes app overviews, not appIds.
 
 ## Support

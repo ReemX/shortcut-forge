@@ -24,7 +24,6 @@ export function describePathLocally(path: string): PathInfo {
 
   const dot = basename.lastIndexOf(".");
   const extension = dot > 0 ? basename.slice(dot).toLowerCase() : "";
-  const stem = dot > 0 ? basename.slice(0, dot) : basename;
 
   return {
     path,
@@ -32,7 +31,6 @@ export function describePathLocally(path: string): PathInfo {
     is_dir: false,
     directory,
     extension,
-    suggested_name: stem.replace(/_/g, " ").replace(/\s+/g, " ").trim(),
     is_windows_app: WINDOWS_EXTENSIONS.has(extension),
     // Unknown without stat'ing the file. Assume it is fine rather than nag
     // about an executable bit we cannot actually check.

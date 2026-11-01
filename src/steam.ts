@@ -1,3 +1,4 @@
+import type { LogoPosition } from "./backend";
 import { getCompatManagerTools } from "./compatTools";
 
 /** A Proton/compatibility tool as reported by Steam. */
@@ -324,6 +325,7 @@ export async function applyCustomArtwork(
   assetType: LibraryAssetType,
   base64: string,
   imageType: "png" | "jpg",
+  logoPosition?: LogoPosition | null,
 ): Promise<void> {
   const apps = SteamClient.Apps as unknown as CustomArtworkApi;
 
@@ -333,11 +335,14 @@ export async function applyCustomArtwork(
 
   // A shortcut with no saved logo position renders its logo blank, so give it
   // the default one Steam would otherwise have written on first edit.
-  if (assetType === 2) fixLogoPosition(appId);
+  if (assetType === 2) fixLogoPosition(appId, logoPosition);
 }
 
-/** Steam's default logo placement, written only when the app has none. */
-function fixLogoPosition(appId: number): void {
+/**
+ * Place the logo: where the game's own Steam page puts it when that is known,
+ * otherwise Steam's default, written only when the app has no placement yet.
+ */
+function fixLogoPosition(appId: number, official?: LogoPosition | null): void {
   // The two stores disagree about the overview type they hand around, and only
   // one of them is what `appStore` actually returns.
   const details = window.appDetailsStore as unknown as {
@@ -347,7 +352,12 @@ function fixLogoPosition(appId: number): void {
 
   try {
     const overview = window.appStore?.GetAppOverviewByAppID(appId);
-    if (!overview || details.GetCustomLogoPosition(overview)) return;
+    if (!overview) return;
+    if (official) {
+      details.SaveCustomLogoPosition(overview, { ...official });
+      return;
+    }
+    if (details.GetCustomLogoPosition(overview)) return;
 
     details.SaveCustomLogoPosition(overview, {
       pinnedPosition: "BottomLeft",

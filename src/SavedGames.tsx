@@ -105,7 +105,7 @@ export function SavedGames() {
           disabled={busy}
           description={
             summary ??
-            "Show list of current Steam shortcuts. Updates when the Steam client restarts."
+            "Show the shortcuts Steam has saved to disk."
           }
           onClick={onCheck}
         >

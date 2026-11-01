@@ -26,7 +26,11 @@ export type Source = "apps" | "files";
 /** The in-progress game being added. */
 export interface Draft {
   source: Source;
+  /** Folder open in the file browser, or null for the list of places. */
+  browsePath: string | null;
   target: PathInfo | null;
+  /** Name of the saved shortcut already pointing at this file, or "". */
+  duplicateOf: string;
   name: string;
   /**
    * Title to search SteamGridDB for, when it differs from `name`.
@@ -48,9 +52,31 @@ export interface Draft {
   addError: string | null;
 }
 
+const SOURCE_KEY = "add-non-steam-games.source";
+
+/** Whichever browser was used last, as a convenience that may be unavailable. */
+function readSource(): Source {
+  try {
+    return window.localStorage.getItem(SOURCE_KEY) === "files" ? "files" : "apps";
+  } catch {
+    return "apps";
+  }
+}
+
+export function setSource(source: Source): void {
+  try {
+    window.localStorage.setItem(SOURCE_KEY, source);
+  } catch {
+    // Only means the choice is not remembered next time.
+  }
+  updateDraft({ source });
+}
+
 const EMPTY: Draft = {
-  source: "apps",
+  source: readSource(),
+  browsePath: null,
   target: null,
+  duplicateOf: "",
   name: "",
   artworkName: "",
   launchOptions: "",
@@ -89,6 +115,7 @@ export function updateDraft(patch: Partial<Draft>): void {
 export function clearSelection(): void {
   updateDraft({
     target: null,
+    duplicateOf: "",
     name: "",
     artworkName: "",
     launchOptions: "",

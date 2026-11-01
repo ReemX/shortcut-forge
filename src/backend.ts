@@ -7,7 +7,6 @@ export interface PathInfo {
   is_dir: boolean;
   directory: string;
   extension: string;
-  suggested_name: string;
   /** Needs Proton to run: .exe, .bat, .cmd, .msi */
   is_windows_app: boolean;
   is_executable: boolean;
@@ -81,6 +80,33 @@ export const rememberDirectory = callable<[path: string], void>("remember_direct
 /** User directories and mounted drives for the browse sidebar. */
 export const listLocations = callable<[], Locations>("list_locations");
 
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size: number;
+  /** Something Steam could run, by its extension or its executable bit. */
+  launchable: boolean;
+  is_windows_app: boolean;
+  /** Launchable but not the game: an uninstaller, crash reporter or redistributable. */
+  helper: boolean;
+}
+
+export interface DirectoryListing {
+  path: string;
+  /** "" at the filesystem root. */
+  parent: string;
+  entries: DirectoryEntry[];
+  /** Path of the file most likely to be the game, or "" when nothing qualifies. */
+  best_match: string;
+  truncated: boolean;
+  /** Why the folder could not be read, or "". */
+  error: string;
+}
+
+/** One folder for the file browser, folders first. */
+export const listDirectory = callable<[path: string, showHidden: boolean], DirectoryListing>("list_directory");
+
 /** Installed applications. Cached in the backend; pass true to rescan. */
 export const listApplications = callable<[refresh: boolean], Application[]>("list_applications");
 
@@ -115,6 +141,12 @@ export interface ArtworkMatch {
   error: string;
 }
 
+export interface LogoPosition {
+  pinnedPosition: string;
+  nWidthPct: number;
+  nHeightPct: number;
+}
+
 export interface ArtworkSlotResult {
   /** The image, base64-encoded, for `SetCustomArtworkForApp`. "" for the icon. */
   data: string;
@@ -122,6 +154,8 @@ export interface ArtworkSlotResult {
   extension: string;
   /** Steam's `ELibraryAssetType` for this slot, or -1 when the slot is unknown. */
   asset_type: number;
+  /** Where the game's own Steam page puts its logo, when this is that logo. */
+  logo_position?: LogoPosition | null;
   /** Set only for the icon, which is a file path on the shortcut itself. */
   icon_path: string;
   error: string;

@@ -1,5 +1,5 @@
 import { DialogButton, Focusable } from "@decky/ui";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { FaChevronDown, FaChevronRight } from "react-icons/fa6";
 
 export interface ListRowProps {
@@ -7,6 +7,13 @@ export interface ListRowProps {
   label: string;
   /** Right-aligned secondary text: free space, app source, and so on. */
   trailing?: string;
+  /** A smaller line under the label. */
+  subtitle?: string;
+  /**
+   * Scroll a label too long for the row even when the row is not selected. For
+   * the row that matters most in its list; others scroll only while selected.
+   */
+  alwaysScroll?: boolean;
   /**
    * Take gamepad focus when this row appears.
    *
@@ -18,13 +25,87 @@ export interface ListRowProps {
 }
 
 /**
+ * A long label slides to its end and back, pausing at each end to be read.
+ *
+ * `:focus` and `.gpfocus` for the same reason as the source tabs: gamepad
+ * navigation moves real DOM focus, and the class name is not ours to depend on.
+ */
+const MARQUEE_STYLES = `
+@keyframes ansg-marquee {
+  0%, 8% { transform: translateX(0); }
+  92%, 100% { transform: translateX(var(--ansg-shift)); }
+}
+.ansg-label-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ansg-scrolls.ansg-always .ansg-label-text,
+.ansg-row:focus .ansg-scrolls .ansg-label-text,
+.ansg-row.gpfocus .ansg-scrolls .ansg-label-text {
+  display: inline-block;
+  overflow: visible;
+  animation: ansg-marquee var(--ansg-duration) linear infinite alternate;
+}
+`;
+
+/** Pixels per second. */
+const MARQUEE_SPEED = 80;
+/** Share of the animation spent moving, the rest being the pauses in the keyframes. */
+const MARQUEE_MOVING = 0.84;
+
+function RowLabel({ text, always }: { text: string; always?: boolean }) {
+  const outer = useRef<HTMLSpanElement>(null);
+  const inner = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(0);
+
+  // Remeasured on resize, since the panel lays out at zero width while hidden.
+  // The observer comes from the panel's own window: see the README on `window`.
+  useEffect(() => {
+    const box = outer.current;
+    const content = inner.current;
+    if (!box || !content) return;
+    const measure = () => setOverflow(Math.max(0, content.scrollWidth - box.clientWidth));
+    measure();
+    const Observer = box.ownerDocument.defaultView?.ResizeObserver;
+    if (!Observer) return;
+    const observer = new Observer(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [text]);
+
+  const scrolls = overflow > 0;
+  return (
+    <span
+      ref={outer}
+      className={`${scrolls ? "ansg-scrolls" : ""} ${always ? "ansg-always" : ""}`}
+      style={{ display: "block", overflow: "hidden", minWidth: 0 }}
+    >
+      <span
+        ref={inner}
+        className="ansg-label-text"
+        style={
+          {
+            "--ansg-shift": `-${overflow}px`,
+            "--ansg-duration": `${Math.max(1, overflow / MARQUEE_SPEED) / MARQUEE_MOVING}s`,
+          } as CSSProperties
+        }
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/**
  * One selectable row.
  *
  * Rows are deliberately full width and a single line: in the Quick Access
  * panel that makes them large D-pad targets, and keeps a long list scannable
  * without a trackpad.
  */
-export function ListRow({ icon, label, trailing, takeFocus, onSelect }: ListRowProps) {
+export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFocus, onSelect }: ListRowProps) {
   const element = useRef<HTMLDivElement>(null);
 
   // Steam moves gamepad focus by focusing the real element, so this is the
@@ -40,6 +121,7 @@ export function ListRow({ icon, label, trailing, takeFocus, onSelect }: ListRowP
   return (
     <DialogButton
       ref={element}
+      className="ansg-row"
       onClick={onSelect}
       style={{
         display: "flex",
@@ -74,12 +156,10 @@ export function ListRow({ icon, label, trailing, takeFocus, onSelect }: ListRowP
         style={{
           flex: "1 1 auto",
           minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
         }}
       >
-        {label}
+        <RowLabel text={label} always={alwaysScroll} />
+        {subtitle && <div style={{ fontSize: "11px", opacity: 0.65, marginTop: "2px" }}>{subtitle}</div>}
       </span>
       {trailing && <span style={{ flexShrink: 0, opacity: 0.6, fontSize: "11px" }}>{trailing}</span>}
     </DialogButton>
@@ -92,12 +172,15 @@ export function ListRow({ icon, label, trailing, takeFocus, onSelect }: ListRowP
  * `flow-children="vertical"` keeps up/down moving between rows instead of
  * escaping the group, which is what makes these lists usable in Game Mode.
  */
-export function ListGroup({ children }: { children: ReactNode }) {
+export function ListGroup({ children, onBack }: { children: ReactNode; onBack?(): void }) {
   return (
     <Focusable
       flow-children="vertical"
+      onCancelButton={onBack}
+      onCancelActionDescription={onBack ? "Back" : undefined}
       style={{ display: "flex", flexDirection: "column", gap: "3px", padding: "0 16px" }}
     >
+      <style>{MARQUEE_STYLES}</style>
       {children}
     </Focusable>
   );

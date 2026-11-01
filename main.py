@@ -360,8 +360,14 @@ def _explain_url_error(reason: object) -> str:
 
 
 def _sgdb_request(key: str, path: str, params: dict | None = None) -> list:
+    """GET a SteamGridDB endpoint whose `data` is a list."""
+    data = _sgdb_get(key, path, params)
+    return data if isinstance(data, list) else []
+
+
+def _sgdb_get(key: str, path: str, params: dict | None = None) -> object:
     """
-    GET a SteamGridDB endpoint and return its `data` list.
+    GET a SteamGridDB endpoint and return its `data`.
 
     Raises `RuntimeError` with a message meant for the panel — everything here
     fails for reasons the user can act on (wrong key, no network), so a stack
@@ -402,8 +408,7 @@ def _sgdb_request(key: str, path: str, params: dict | None = None) -> list:
         detail = ", ".join(str(item) for item in errors) if errors else "unknown error"
         raise RuntimeError(f"SteamGridDB said: {detail}")
 
-    data = payload.get("data")
-    return data if isinstance(data, list) else []
+    return payload.get("data")
 
 
 def _best_match(games: list, name: str) -> dict | None:
@@ -492,6 +497,161 @@ def _write_artwork(directory: str, app_id: int, suffix: str, asset: dict) -> str
     return target
 
 
+# What can be launched by name alone. A file with no extension still counts if
+# it has the executable bit, which is how most native Linux games ship.
+LAUNCHABLE_EXTENSIONS = WINDOWS_EXTENSIONS | {".sh", ".appimage", ".x86_64", ".x86", ".bin", ".run"}
+
+# Launchable, but never the game: crash reporters, uninstallers and redistributables.
+HELPER_FILES = re.compile(
+    r"^(unins\d*|uninstall.*|.*crash.?(handler|report|pad).*|vc_?redist.*|dx(web)?setup.*"
+    r"|directx.*|oalinst.*|dotnet.*|ndp\d+.*|physx.*|ue[345]prereq.*|.*prereq.*setup.*"
+    r"|easyanticheat.*|battleye.*)(\.[a-z0-9_]+)?$",
+    re.IGNORECASE,
+)
+
+# More entries than anyone could browse with a D-pad, and enough to slow the panel.
+MAX_DIRECTORY_ENTRIES = 2000
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _pick_best_match(entries: list, folder_name: str) -> str:
+    """The file most likely to be the game: named after its folder, else the largest."""
+    candidates = [entry for entry in entries if entry["launchable"] and not entry["helper"]]
+    if not candidates:
+        return ""
+    folder = _squash(folder_name)
+
+    def score(entry: dict) -> tuple:
+        stem = _squash(os.path.splitext(entry["name"])[0])
+        matches = 2 if stem == folder else 1 if stem and (stem in folder or folder in stem) else 0
+        return (matches, entry["size"])
+
+    return max(candidates, key=score)["path"]
+
+
+def _list_directory(path: str, show_hidden: bool) -> dict:
+    """One folder for the panel's file browser, folders first and in natural order."""
+    path = os.path.abspath(path)
+    parent = os.path.dirname(path)
+    result = {
+        "path": path,
+        "parent": "" if parent == path else parent,
+        "entries": [],
+        "best_match": "",
+        "truncated": False,
+        "error": "",
+    }
+
+    entries = []
+    try:
+        with os.scandir(path) as iterator:
+            for item in iterator:
+                if item.name.startswith(".") and not show_hidden:
+                    continue
+                if len(entries) >= MAX_DIRECTORY_ENTRIES:
+                    result["truncated"] = True
+                    break
+                try:
+                    is_dir = item.is_dir()
+                    size = 0 if is_dir else item.stat().st_size
+                except OSError:
+                    continue  # a broken symlink, or one we may not follow
+                extension = os.path.splitext(item.name)[1].lower()
+                executable = not is_dir and os.access(item.path, os.X_OK)
+                launchable = not is_dir and (
+                    extension in LAUNCHABLE_EXTENSIONS or (not extension and executable)
+                )
+                entries.append({
+                    "name": item.name,
+                    "path": item.path,
+                    "is_dir": is_dir,
+                    "size": size,
+                    "launchable": launchable,
+                    "is_windows_app": extension in WINDOWS_EXTENSIONS,
+                    "helper": launchable and bool(HELPER_FILES.match(item.name)),
+                })
+    except OSError as error:
+        result["error"] = error.strerror or str(error)
+        return result
+
+    def natural(entry: dict) -> list:
+        return [
+            (0, int(part)) if part.isdigit() else (1, part.lower())
+            for part in re.split(r"(\d+)", entry["name"])
+        ]
+
+    entries.sort(key=lambda entry: (not entry["is_dir"], natural(entry)))
+    result["entries"] = entries
+    result["best_match"] = _pick_best_match(entries, os.path.basename(path))
+    return result
+
+
+# Where Steam serves a game's store artwork. The file names below it carry a
+# content hash, so the old fixed paths like library_hero.jpg 404 for newer games.
+STEAM_ASSET_BASE = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps"
+
+# Library art slot -> the field of SteamGridDB's Steam metadata that describes the
+# game's own file for it. SteamGridDB has no "official" style for grids or heroes
+# (it answers "Invalid style"), so this is the only route to the real ones.
+OFFICIAL_ART_FIELDS = {
+    "grid": "library_capsule_full",
+    "wide grid": "header_image_full",
+    "hero": "library_hero_full",
+    "logo": "library_logo_full",
+}
+
+# SteamGridDB does label these two kinds, so "official" can simply be asked for.
+OFFICIAL_STYLE_ENDPOINTS = ("logos", "icons")
+
+
+def _pick_language(files: object) -> str:
+    """English when there is one, since that is what a shortcut's title is searched in."""
+    if not isinstance(files, dict) or not files:
+        return ""
+    chosen = files.get("english") or next(iter(files.values()))
+    return chosen if isinstance(chosen, str) else ""
+
+
+def _official_art(steam_entry: dict) -> dict:
+    """
+    The game's own Steam artwork, from SteamGridDB's record of its Steam page.
+
+    Returns the URL for each slot Steam has a file for, plus where the logo goes.
+    Anything missing is simply left out, and that slot falls back to SteamGridDB.
+    """
+    steam_id = str(steam_entry.get("id") or "")
+    metadata = steam_entry.get("metadata")
+    if not steam_id.isdigit() or not isinstance(metadata, dict):
+        return {}
+
+    urls = {}
+    for slot, field in OFFICIAL_ART_FIELDS.items():
+        block = metadata.get(field)
+        if not isinstance(block, dict):
+            continue
+        # The header is a plain language map; the others offer a double-size image.
+        sized = block.get("image2x") or block.get("image")
+        path = _pick_language(sized if sized else block)
+        if path:
+            urls[slot] = f"{STEAM_ASSET_BASE}/{steam_id}/{path}"
+
+    art = {"urls": urls, "logo_position": None}
+    try:
+        position = json.loads(metadata.get("logo_position") or "null")
+        if isinstance(position, dict):
+            art["logo_position"] = {
+                "pinnedPosition": str(position["pinned_position"]),
+                "nWidthPct": float(position["width_pct"]),
+                "nHeightPct": float(position["height_pct"]),
+            }
+    except (KeyError, TypeError, ValueError):
+        pass  # Steam's default placement is fine
+    return art
+
+
 def _no_game(message: str) -> dict:
     """A failed artwork search, in the shape `find_artwork` promises."""
     return {"found": False, "game_id": 0, "game_name": "", "error": message}
@@ -504,6 +664,8 @@ class Plugin:
         # Scanning every .desktop file is too slow to repeat on each panel open.
         self._applications: list | None = None
         self._icon_cache: dict = {}
+        # SteamGridDB game id -> its official Steam art, looked up once per add.
+        self._official_art: dict = {}
         decky.logger.info("Add Non-Steam Games ready")
 
     async def _unload(self):
@@ -543,6 +705,10 @@ class Plugin:
             "drives": self._list_drives(),
         }
 
+    async def list_directory(self, path: str, show_hidden: bool = False) -> dict:
+        """One folder for the file browser. A read failure comes back as `error`."""
+        return await asyncio.to_thread(_list_directory, path, show_hidden)
+
     async def list_applications(self, refresh: bool = False) -> list:
         """
         Installed applications, from the same `.desktop` files the desktop menu
@@ -570,7 +736,6 @@ class Plugin:
             "is_dir": is_dir,
             "directory": path if is_dir else os.path.dirname(path),
             "extension": extension,
-            "suggested_name": self._suggest_name(path),
             "is_windows_app": extension in WINDOWS_EXTENSIONS,
             "is_executable": exists and not is_dir and os.access(path, os.X_OK),
             "looks_launchable": extension not in NON_EXECUTABLE_EXTENSIONS,
@@ -603,8 +768,10 @@ class Plugin:
     # --- Preferences -----------------------------------------------------
 
     async def get_restart_preference(self) -> str:
-        value = self.settings.get("restart_after_add", "ask")
-        return value if value in RESTART_CHOICES else "ask"
+        # Current clients save a new shortcut within seconds, so a restart only
+        # makes its icon appear and is not worth interrupting anyone for.
+        value = self.settings.get("restart_after_add", "never")
+        return value if value in RESTART_CHOICES else "never"
 
     async def set_restart_preference(self, value: str) -> None:
         if value not in RESTART_CHOICES:
@@ -706,13 +873,38 @@ class Plugin:
         label, endpoint, suffix, dimensions, asset_type = kind
         empty = {"data": "", "extension": "", "asset_type": asset_type, "icon_path": "", "error": ""}
 
+        # The game's real Steam art comes first. Failing to get it only ever means
+        # falling back to what the community uploaded.
+        official = self._official_art_for(game_id, key)
+        official_url = official.get("urls", {}).get(label)
+        if official_url:
+            try:
+                data = _download_artwork(official_url)
+            except RuntimeError as error:
+                decky.logger.warning("Official %s unavailable: %s", label, error)
+            else:
+                decky.logger.info(
+                    "Fetched official %s for appid %s from %s (%d KB)",
+                    label, app_id, official_url, len(data) // 1024,
+                )
+                return {
+                    **empty,
+                    "data": base64.b64encode(data).decode("ascii"),
+                    "extension": "png",
+                    "logo_position": official.get("logo_position") if label == "logo" else None,
+                }
+
         # Animated assets exist for some games; Steam does not display them for
         # shortcuts, so they are filtered out rather than downloaded.
         params = {"types": "static"}
         if dimensions:
             params["dimensions"] = dimensions
 
-        assets = _sgdb_request(key, f"{endpoint}/game/{game_id}", params)
+        assets = []
+        if endpoint in OFFICIAL_STYLE_ENDPOINTS:
+            assets = _sgdb_request(key, f"{endpoint}/game/{game_id}", {**params, "styles": "official"})
+        if not assets:
+            assets = _sgdb_request(key, f"{endpoint}/game/{game_id}", params)
         if not assets:
             return {**empty, "error": "none available"}
 
@@ -744,6 +936,20 @@ class Plugin:
             # SteamGridDB's own plugin passes for every asset it applies.
             "extension": "png",
         }
+
+    def _official_art_for(self, game_id: int, key: str) -> dict:
+        """The game's Steam art, or {} when it has no Steam page or the lookup fails."""
+        if game_id not in self._official_art:
+            art = {}
+            try:
+                game = _sgdb_get(key, f"games/id/{game_id}", {"platformdata": "steam"})
+                entries = game.get("external_platform_data", {}).get("steam") if isinstance(game, dict) else None
+                if entries:
+                    art = _official_art(entries[0])
+            except (RuntimeError, AttributeError, TypeError) as error:
+                decky.logger.warning("Could not look up official art: %s", error)
+            self._official_art[game_id] = art
+        return self._official_art[game_id]
 
     async def list_artwork(self, app_id: int) -> dict:
         """
@@ -1093,12 +1299,6 @@ class Plugin:
         except OSError:
             return 0
 
-    def _suggest_name(self, path: str) -> str:
-        """Turn '/games/Some_cool-game.x86_64' into 'Some cool-game'."""
-        basename = os.path.basename(os.path.normpath(path))
-        stem = os.path.splitext(basename)[0] or basename
-        return re.sub(r"\s+", " ", stem.replace("_", " ")).strip()
-
     def _read_settings(self) -> dict:
         try:
             with open(self.settings_path, "r", encoding="utf-8") as handle:
@@ -1111,8 +1311,13 @@ class Plugin:
         return loaded if isinstance(loaded, dict) else {}
 
     def _write_settings(self) -> None:
+        # Replaced whole, so power loss mid-write cannot cost the API key, and
+        # private to the user because it holds that key.
+        temporary = f"{self.settings_path}.tmp"
         try:
-            with open(self.settings_path, "w", encoding="utf-8") as handle:
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump(self.settings, handle)
+            os.replace(temporary, self.settings_path)
         except OSError as error:
             decky.logger.warning("Could not save settings: %s", error)

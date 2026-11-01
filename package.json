@@ -6,7 +6,8 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "test": "node --no-warnings tests/gameName.test.mjs && node --no-warnings tests/launchPresets.test.mjs"
   },
   "keywords": [
     "decky",

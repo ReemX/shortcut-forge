@@ -64,6 +64,7 @@ async function fetchSlot(appId: number, gameId: number, slot: string): Promise<s
     result.asset_type as 0 | 1 | 2 | 3,
     result.data,
     result.extension === "jpg" ? "jpg" : "png",
+    result.logo_position,
   );
   return "";
 }
