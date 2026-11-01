@@ -272,6 +272,21 @@ function writeDllSections(before: string[], sections: { names: string[]; mode: s
   return before.map((item, position) => (position === index ? token : item));
 }
 
+/** Takes these DLLs out of every section, then adds them back under `mode` if wanted. */
+function applyDlls(before: string[], names: string[], mode: string, on: boolean): string[] {
+  const lowered = names.map((name) => name.toLowerCase());
+  const sections = readDllSections(before).map((section) => ({
+    ...section,
+    names: section.names.filter((name) => !lowered.includes(name.toLowerCase())),
+  }));
+  if (on) {
+    const target = sections.find((section) => section.mode === mode);
+    if (target) target.names.push(...names);
+    else sections.push({ names: [...names], mode });
+  }
+  return writeDllSections(before, sections);
+}
+
 export function isPresetOn(preset: LaunchPreset, options: string): boolean {
   const { before, after } = parse(options);
   if (preset.env) return before.includes(preset.env);
@@ -282,8 +297,11 @@ export function isPresetOn(preset: LaunchPreset, options: string): boolean {
   return (preset.dlls ?? []).every((dll) => present.includes(dll.toLowerCase()));
 }
 
-export function countActivePresets(options: string): number {
-  return LAUNCH_PRESETS.filter((preset) => isPresetOn(preset, options)).length;
+export function countActivePresets(options: string, custom: CustomPreset[] = []): number {
+  return (
+    LAUNCH_PRESETS.filter((preset) => isPresetOn(preset, options)).length +
+    custom.filter((preset) => isCustomPresetOn(preset, options)).length
+  );
 }
 
 export function setPreset(preset: LaunchPreset, options: string, on: boolean): string {
@@ -298,17 +316,7 @@ export function setPreset(preset: LaunchPreset, options: string, on: boolean): s
     const others = parsed.after.filter((token) => token !== preset.arg);
     parsed.after = on ? [...others, preset.arg] : others;
   } else if (preset.dlls) {
-    const dlls = preset.dlls.map((dll) => dll.toLowerCase());
-    const sections = readDllSections(parsed.before).map((section) => ({
-      ...section,
-      names: section.names.filter((name) => !dlls.includes(name.toLowerCase())),
-    }));
-    if (on) {
-      const target = sections.find((section) => section.mode === DLL_MODE);
-      if (target) target.names.push(...preset.dlls);
-      else sections.push({ names: [...preset.dlls], mode: DLL_MODE });
-    }
-    parsed.before = writeDllSections(parsed.before, sections);
+    parsed.before = applyDlls(parsed.before, preset.dlls, DLL_MODE, on);
   }
 
   return serialize(parsed);
@@ -317,4 +325,104 @@ export function setPreset(preset: LaunchPreset, options: string, on: boolean): s
 /** What the toggle adds to the launch options, shown so nothing is hidden. */
 export function presetOption(preset: LaunchPreset): string {
   return preset.env ?? preset.arg ?? `${DLL_VAR}="${preset.dlls?.join(",")}=${DLL_MODE}"`;
+}
+
+/** A preset the user wrote: a name, and what they would type into Launch options. */
+export interface CustomPreset {
+  id: string;
+  alias: string;
+  options: string;
+}
+
+interface CustomParts {
+  assignments: string[];
+  wrapper: string[];
+  dlls: { names: string[]; mode: string }[];
+  args: string[];
+}
+
+function customParts(text: string): CustomParts {
+  let { before, after } = parse(text);
+  // Steam would pass a bare `VAR=1` to the game as an argument, which is never
+  // what someone saving it as a preset means.
+  if (!tokenize(text).includes(COMMAND)) {
+    const firstWord = after.findIndex((token) => !isAssignment(token));
+    const count = firstWord < 0 ? after.length : firstWord;
+    before = after.slice(0, count);
+    after = after.slice(count);
+  }
+  return {
+    assignments: before.filter((token) => isAssignment(token) && !isDllToken(token)),
+    wrapper: before.filter((token) => !isAssignment(token)),
+    dlls: readDllSections(before),
+    args: after,
+  };
+}
+
+/** Where `run` appears in `tokens` as consecutive items, or -1. */
+function findRun(tokens: string[], run: string[]): number {
+  for (let at = 0; at + run.length <= tokens.length; at += 1) {
+    if (run.every((token, offset) => tokens[at + offset] === token)) return at;
+  }
+  return -1;
+}
+
+function removeRun(tokens: string[], run: string[]): string[] {
+  const at = run.length > 0 ? findRun(tokens, run) : -1;
+  return at < 0 ? tokens : [...tokens.slice(0, at), ...tokens.slice(at + run.length)];
+}
+
+/** Why this cannot be saved, in words for the panel, or "" when it can. */
+export function customPresetProblem(alias: string, options: string): string {
+  if (!alias.trim()) return "Give the preset a name.";
+  if ((options.match(/"/g)?.length ?? 0) % 2 === 1 || (options.match(/'/g)?.length ?? 0) % 2 === 1) {
+    return "A quote in the launch options is not closed.";
+  }
+  const { assignments, wrapper, dlls, args } = customParts(options);
+  if (assignments.length + wrapper.length + dlls.length + args.length === 0) {
+    return "Enter the launch options it should add.";
+  }
+  return "";
+}
+
+export function isCustomPresetOn(preset: CustomPreset, options: string): boolean {
+  const { assignments, wrapper, dlls, args } = customParts(preset.options);
+  if (assignments.length + wrapper.length + dlls.length + args.length === 0) return false;
+
+  const { before, after } = parse(options);
+  const sections = readDllSections(before);
+  const hasDll = (name: string, mode: string) =>
+    sections.some(
+      (section) =>
+        section.mode === mode &&
+        section.names.some((present) => present.toLowerCase() === name.toLowerCase()),
+    );
+
+  return (
+    assignments.every((token) => before.includes(token)) &&
+    (wrapper.length === 0 || findRun(before, wrapper) >= 0) &&
+    (args.length === 0 || findRun(after, args) >= 0) &&
+    dlls.every((section) => section.names.every((name) => hasDll(name, section.mode)))
+  );
+}
+
+export function setCustomPreset(preset: CustomPreset, options: string, on: boolean): string {
+  const parts = customParts(preset.options);
+  const parsed = parse(options);
+
+  let before = removeRun(parsed.before, parts.wrapper);
+  for (const token of parts.assignments) {
+    if (on) {
+      // Replaces the variable rather than adding a second, conflicting copy of it.
+      const name = token.slice(0, token.indexOf("=") + 1);
+      before = insertAssignment(before.filter((item) => !item.startsWith(name)), token);
+    } else {
+      before = before.filter((item) => item !== token);
+    }
+  }
+  for (const section of parts.dlls) before = applyDlls(before, section.names, section.mode, on);
+  if (on) before = [...before, ...parts.wrapper];
+
+  const after = removeRun(parsed.after, parts.args);
+  return serialize({ before, after: on ? [...after, ...parts.args] : after });
 }

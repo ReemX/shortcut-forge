@@ -38,6 +38,10 @@ SETTINGS_FILENAME = "settings.json"
 # Shown in the panel so a stale install is obvious. Keep in sync with package.json.
 PLUGIN_VERSION = "1.7.14"
 
+CUSTOM_PRESET_MAX_COUNT = 100
+CUSTOM_PRESET_MAX_ALIAS = 80
+CUSTOM_PRESET_MAX_OPTIONS = 2000
+
 # "ask" prompts after every add; "always"/"never" skip the prompt.
 RESTART_CHOICES = ("ask", "always", "never")
 
@@ -652,6 +656,28 @@ def _official_art(steam_entry: dict) -> dict:
     return art
 
 
+def _clean_custom_presets(presets) -> list:
+    """Only well-formed presets get stored, since the panel trusts what it reads back."""
+    cleaned = []
+    seen = set()
+    for preset in presets if isinstance(presets, list) else []:
+        if not isinstance(preset, dict):
+            continue
+        preset_id = preset.get("id")
+        alias = preset.get("alias")
+        options = preset.get("options")
+        if not all(isinstance(value, str) for value in (preset_id, alias, options)):
+            continue
+        preset_id, alias, options = preset_id.strip(), alias.strip(), options.strip()
+        if not preset_id or not alias or not options or preset_id in seen:
+            continue
+        if len(alias) > CUSTOM_PRESET_MAX_ALIAS or len(options) > CUSTOM_PRESET_MAX_OPTIONS:
+            continue
+        seen.add(preset_id)
+        cleaned.append({"id": preset_id, "alias": alias, "options": options})
+    return cleaned[:CUSTOM_PRESET_MAX_COUNT]
+
+
 def _no_game(message: str) -> dict:
     """A failed artwork search, in the shape `find_artwork` promises."""
     return {"found": False, "game_id": 0, "game_name": "", "error": message}
@@ -782,6 +808,15 @@ class Plugin:
         decky.logger.info("Restart preference set to %s", value)
 
     # --- Artwork ---------------------------------------------------------
+
+    async def get_custom_presets(self) -> list:
+        return _clean_custom_presets(self.settings.get("custom_presets"))
+
+    async def set_custom_presets(self, presets: list) -> list:
+        self.settings["custom_presets"] = _clean_custom_presets(presets)
+        self._write_settings()
+        decky.logger.info("Saved %d custom launch presets", len(self.settings["custom_presets"]))
+        return self.settings["custom_presets"]
 
     async def get_artwork_settings(self) -> dict:
         """Whether artwork is wanted, the key it needs, and the slots it fills."""

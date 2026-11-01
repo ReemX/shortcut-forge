@@ -17,6 +17,7 @@ import { FaArrowLeft, FaPlus } from "react-icons/fa6";
 import {
   checkSteamGridDb,
   getArtworkSettings,
+  getCustomPresets,
   getRestartPreference,
   inspectPath,
   listApplications,
@@ -60,7 +61,7 @@ import {
 } from "./steam";
 import type { CollectionSummary, CompatibilityTool } from "./steam";
 import { LaunchPresets } from "./LaunchPresetList";
-import { countActivePresets } from "./launchPresets";
+import { countActivePresets, type CustomPreset } from "./launchPresets";
 import { FileBrowser } from "./FileBrowser";
 import { suggestGameName } from "./gameName";
 import { DisclosureRow, ListGroup, ListRow } from "./ListRow";
@@ -127,6 +128,7 @@ function Content() {
   const [backendError, setBackendError] = useState<string | null>(null);
   const [versionWarning, setVersionWarning] = useState("");
   const [moreOptions, setMoreOptions] = useState(false);
+  const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
 
   const panelVisible = usePanelVisible();
   const topAnchor = useRef<HTMLDivElement>(null);
@@ -182,6 +184,7 @@ function Content() {
       .catch(() => {});
     getRestartPreference().then(setRestartPreferenceState).catch(() => {});
     getArtworkSettings().then(setArtworkSettings).catch(() => {});
+    getCustomPresets().then(setCustomPresets).catch(() => {});
   }, []);
 
   // The compat tool list loads asynchronously, so a file picked before it
@@ -619,7 +622,7 @@ function Content() {
   const canAdd = !busy && Boolean(name.trim()) && collectionReady;
 
   const moreOptionsSet =
-    countActivePresets(launchOptions) + (artworkName.trim() ? 1 : 0) + (collectionId ? 1 : 0);
+    countActivePresets(launchOptions, customPresets) + (artworkName.trim() ? 1 : 0) + (collectionId ? 1 : 0);
 
   const needsExecutableBit = Boolean(
     target && target.exists && !target.is_dir && !target.is_windows_app && !target.is_executable,
@@ -858,6 +861,8 @@ function Content() {
               options={launchOptions}
               usesProton={compatTool !== NO_COMPAT_TOOL}
               onChange={(next) => updateDraft({ launchOptions: next })}
+              custom={customPresets}
+              onCustomChange={setCustomPresets}
             />
 
             <StackedDropdown

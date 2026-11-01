@@ -1,4 +1,5 @@
 import { callable } from "@decky/api";
+import type { CustomPreset } from "./launchPresets";
 
 /** Everything the backend can tell us about a path the user picked. */
 export interface PathInfo {
@@ -117,6 +118,10 @@ export const makeExecutable = callable<[path: string], ActionResult>("make_execu
 
 export const getRestartPreference = callable<[], RestartPreference>("get_restart_preference");
 export const setRestartPreference = callable<[value: RestartPreference], void>("set_restart_preference");
+
+export const getCustomPresets = callable<[], CustomPreset[]>("get_custom_presets");
+/** Replaces the whole list and resolves with what was actually stored. */
+export const setCustomPresets = callable<[presets: CustomPreset[]], CustomPreset[]>("set_custom_presets");
 
 /** Mirror frontend events into the plugin log so failures are diagnosable. */
 export const log = callable<[level: string, message: string], void>("log");
