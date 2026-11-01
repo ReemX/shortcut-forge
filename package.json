@@ -1,13 +1,13 @@
 {
-  "name": "add-non-steam-games",
-  "version": "1.7.14",
+  "name": "shortcut-forge",
+  "version": "2.0.0",
   "description": "Decky Loader plugin to add non-Steam games to your Steam library from Game Mode",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "package": "node scripts/package.mjs",
-    "test": "node --no-warnings tests/gameName.test.mjs && node --no-warnings tests/launchPresets.test.mjs"
+    "test": "node --no-warnings tests/gameName.test.mjs && node --no-warnings tests/launchPresets.test.mjs && node --no-warnings tests/customPresets.test.mjs"
   },
   "keywords": [
     "decky",
@@ -17,7 +17,7 @@
     "non-steam-games",
     "shortcuts"
   ],
-  "author": "Daniel Vergara",
+  "author": "ReemX",
   "license": "BSD-3-Clause",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
@@ -40,5 +40,10 @@
         "react-dom"
       ]
     }
+  },
+  "homepage": "https://github.com/ReemX/shortcut-forge",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ReemX/shortcut-forge.git"
   }
 }

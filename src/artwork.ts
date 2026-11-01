@@ -97,7 +97,7 @@ export async function fetchArtwork(
     try {
       onProgress(progress);
     } catch (error) {
-      console.error("[add-non-steam-games] could not show artwork progress", error);
+      console.error("[shortcut-forge] could not show artwork progress", error);
     }
   };
 
@@ -155,7 +155,7 @@ export async function fetchArtwork(
     files = onDisk.files;
     directory = onDisk.directory;
   } catch (error) {
-    console.error("[add-non-steam-games] could not list artwork files", error);
+    console.error("[shortcut-forge] could not list artwork files", error);
   }
 
   record(

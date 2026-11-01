@@ -1,10 +1,13 @@
 {
-  "name": "Add Non-Steam Games",
-  "author": "Daniel Vergara",
+  "name": "Shortcut Forge",
+  "author": "ReemX",
   "flags": [],
   "api_version": 1,
   "publish": {
-    "tags": ["library", "utility"],
-    "description": "Add non-Steam games to your Steam library without leaving Game Mode. Browse for the game's executable and it becomes a shortcut, with Proton selectable for Windows games and artwork downloaded from SteamGridDB."
+    "tags": [
+      "library",
+      "utility"
+    ],
+    "description": "Add non-Steam games from Game Mode. Browse to the game, get a clean name, the right Proton, official artwork and launch option presets, including your own."
   }
 }

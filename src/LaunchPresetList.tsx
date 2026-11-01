@@ -157,7 +157,7 @@ export function LaunchPresets({
       onCustomChange(await setCustomPresets(next));
       return true;
     } catch (error) {
-      console.error("[add-non-steam-games] could not save custom presets", error);
+      console.error("[shortcut-forge] could not save custom presets", error);
       setSaveError("Could not save. The plugin's backend is not responding.");
       return false;
     }

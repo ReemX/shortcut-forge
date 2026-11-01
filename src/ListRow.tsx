@@ -31,22 +31,22 @@ export interface ListRowProps {
  * navigation moves real DOM focus, and the class name is not ours to depend on.
  */
 const MARQUEE_STYLES = `
-@keyframes ansg-marquee {
+@keyframes sf-marquee {
   0%, 8% { transform: translateX(0); }
-  92%, 100% { transform: translateX(var(--ansg-shift)); }
+  92%, 100% { transform: translateX(var(--sf-shift)); }
 }
-.ansg-label-text {
+.sf-label-text {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ansg-scrolls.ansg-always .ansg-label-text,
-.ansg-row:focus .ansg-scrolls .ansg-label-text,
-.ansg-row.gpfocus .ansg-scrolls .ansg-label-text {
+.sf-scrolls.sf-always .sf-label-text,
+.sf-row:focus .sf-scrolls .sf-label-text,
+.sf-row.gpfocus .sf-scrolls .sf-label-text {
   display: inline-block;
   overflow: visible;
-  animation: ansg-marquee var(--ansg-duration) linear infinite alternate;
+  animation: sf-marquee var(--sf-duration) linear infinite alternate;
 }
 `;
 
@@ -61,7 +61,7 @@ function RowLabel({ text, always }: { text: string; always?: boolean }) {
   const [overflow, setOverflow] = useState(0);
 
   // Remeasured on resize, since the panel lays out at zero width while hidden.
-  // The observer comes from the panel's own window: see the README on `window`.
+  // The observer comes from the panel's own window: see DEVELOPMENT.md on `window`.
   useEffect(() => {
     const box = outer.current;
     const content = inner.current;
@@ -79,16 +79,16 @@ function RowLabel({ text, always }: { text: string; always?: boolean }) {
   return (
     <span
       ref={outer}
-      className={`${scrolls ? "ansg-scrolls" : ""} ${always ? "ansg-always" : ""}`}
+      className={`${scrolls ? "sf-scrolls" : ""} ${always ? "sf-always" : ""}`}
       style={{ display: "block", overflow: "hidden", minWidth: 0 }}
     >
       <span
         ref={inner}
-        className="ansg-label-text"
+        className="sf-label-text"
         style={
           {
-            "--ansg-shift": `-${overflow}px`,
-            "--ansg-duration": `${Math.max(1, overflow / MARQUEE_SPEED) / MARQUEE_MOVING}s`,
+            "--sf-shift": `-${overflow}px`,
+            "--sf-duration": `${Math.max(1, overflow / MARQUEE_SPEED) / MARQUEE_MOVING}s`,
           } as CSSProperties
         }
       >
@@ -121,7 +121,7 @@ export function ListRow({ icon, label, trailing, subtitle, alwaysScroll, takeFoc
   return (
     <DialogButton
       ref={element}
-      className="ansg-row"
+      className="sf-row"
       onClick={onSelect}
       style={{
         display: "flex",

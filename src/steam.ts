@@ -146,7 +146,7 @@ export async function addNonSteamShortcut(request: ShortcutRequest): Promise<Sho
   const log: string[] = [];
   const note = (message: string) => {
     log.push(message);
-    console.log(`[add-non-steam-games] ${message}`);
+    console.log(`[shortcut-forge] ${message}`);
   };
 
   note(`Adding name=${request.name} exe=${request.exe} startDir=${request.startDir}`);
@@ -286,7 +286,7 @@ export function setShortcutIcon(appId: number, iconPath: string): void {
   try {
     SteamClient.Apps.SetShortcutIcon(appId, iconPath);
   } catch (error) {
-    console.error("[add-non-steam-games] could not set the shortcut icon", error);
+    console.error("[shortcut-forge] could not set the shortcut icon", error);
   }
 }
 
@@ -365,7 +365,7 @@ function fixLogoPosition(appId: number, official?: LogoPosition | null): void {
       nHeightPct: 50,
     });
   } catch (error) {
-    console.error("[add-non-steam-games] could not set the logo position", error);
+    console.error("[shortcut-forge] could not set the logo position", error);
   }
 }
 
@@ -382,7 +382,7 @@ export function removeShortcut(appId: number): void {
  * power.
  */
 export function restartSteam(): void {
-  console.log("[add-non-steam-games] restarting Steam");
+  console.log("[shortcut-forge] restarting Steam");
   SteamClient.User.StartRestart(false);
 }
 
@@ -403,7 +403,7 @@ export async function getCompatibilityTools(): Promise<CompatibilityTool[]> {
         : await getCompatManagerTools();
     return (tools ?? []).filter((tool) => Boolean(tool?.strToolName));
   } catch (error) {
-    console.error("[add-non-steam-games] could not read compatibility tools", error);
+    console.error("[shortcut-forge] could not read compatibility tools", error);
     return [];
   }
 }

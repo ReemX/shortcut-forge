@@ -4,6 +4,35 @@ The section for a version is what the release workflow puts on that release's
 page, so write it for someone deciding whether to update — not for someone
 reading the diff.
 
+Versions before 2.0.0 are from Add Non-Steam Games, the plugin this was forked from.
+
+## v2.0.0
+
+The first release as Shortcut Forge. It is installed separately from Add Non-Steam Games, so settings do not carry over and the SteamGridDB key needs entering again. Games already in your library are not affected.
+
+**Adding games**
+
+- The panel has its own file browser, which marks the likely game file and moves uninstallers and redistributables out of the way. Steam's picker is still there as a fallback.
+- Better names: `MoonSweepers.exe` becomes Moon Sweepers, tags and versions are dropped, and generic file names use the folder's name.
+- Windows games default to the tool Steam has marked active, then Proton Stable, then Experimental.
+- Choosing None is no longer undone when the panel reopens.
+- The form is shorter, with the less common fields under **More options**, and adding a game you already have gets a warning.
+- After an add you go straight to the Non-Steam tab. Steam no longer needs a restart for this, so the default is not to ask.
+
+**Launch options**
+
+- 21 named presets for common problems, each saying what it is for and what it costs.
+- Your own presets, saved in settings and available for every game.
+
+**Artwork**
+
+- Official Steam art and logo positions are used where they exist, with community art as the fallback.
+
+**Also**
+
+- Long names scroll so you can read them.
+- Settings are written atomically and are readable only by you, since they hold the API key.
+
 ## v1.7.14
 
 **Compatibility list**

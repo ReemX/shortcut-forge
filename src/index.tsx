@@ -12,7 +12,7 @@ import {
 import type { DropdownOption, SingleDropdownOption } from "@decky/ui";
 import { FileSelectionType, definePlugin, openFilePicker, toaster } from "@decky/api";
 import { useEffect, useRef, useState } from "react";
-import { FaArrowLeft, FaPlus } from "react-icons/fa6";
+import { FaArrowLeft, FaHammer } from "react-icons/fa6";
 
 import {
   checkSteamGridDb,
@@ -152,7 +152,7 @@ function Content() {
     listApplications(refresh)
       .then(setApplications)
       .catch((error) => {
-        console.error("[add-non-steam-games] could not list applications", error);
+        console.error("[shortcut-forge] could not list applications", error);
         setApplicationsFailed(true);
       });
   };
@@ -164,7 +164,7 @@ function Content() {
         setBackendError(null);
       })
       .catch((error) => {
-        console.error("[add-non-steam-games] could not list locations", error);
+        console.error("[shortcut-forge] could not list locations", error);
         setBackendError(
           "The plugin's Python backend is not responding. Browsing still works, but folder shortcuts and saved-game checks do not.",
         );
@@ -230,7 +230,7 @@ function Content() {
       setBackendError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[add-non-steam-games] inspect_path failed", error);
+      console.error("[shortcut-forge] inspect_path failed", error);
       setBackendError(`The plugin's Python backend is not responding (${message}).`);
       info = describePathLocally(path);
     }
@@ -295,7 +295,7 @@ function Content() {
       const result = await makeExecutable(target.path);
       if (result.success) {
         updateDraft({ target: await inspectPath(target.path) });
-        toaster.toast({ title: "Add Non-Steam Games", body: "Marked as executable" });
+        toaster.toast({ title: "Shortcut Forge", body: "Marked as executable" });
       } else {
         toaster.toast({ title: "Could not mark as executable", body: result.error ?? "Unknown error" });
       }
@@ -1184,16 +1184,16 @@ function OptionsSection({
 }
 
 export default definePlugin(() => ({
-  name: "Add Non-Steam Games",
+  name: "Shortcut Forge",
   titleView: (
     <div className={staticClasses.Title} style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-      Add Non-Steam Games
+      Shortcut Forge
       {/* Visible build number, so a stale install is obvious at a glance. */}
       <span style={{ fontSize: "11px", opacity: 0.5 }}>v{PLUGIN_VERSION}</span>
     </div>
   ),
   content: <Content />,
-  icon: <FaPlus />,
+  icon: <FaHammer />,
   // Decky unmounts plugin content whenever the Quick Access panel is hidden,
   // and opening the file picker hides it. Without this the picked file lands on
   // an unmounted component and the panel reopens blank.

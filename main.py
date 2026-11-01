@@ -36,7 +36,7 @@ NON_EXECUTABLE_EXTENSIONS = {
 SETTINGS_FILENAME = "settings.json"
 
 # Shown in the panel so a stale install is obvious. Keep in sync with package.json.
-PLUGIN_VERSION = "1.7.14"
+PLUGIN_VERSION = "2.0.0"
 
 CUSTOM_PRESET_MAX_COUNT = 100
 CUSTOM_PRESET_MAX_ALIAS = 80
@@ -386,7 +386,7 @@ def _sgdb_get(key: str, path: str, params: dict | None = None) -> object:
 
     request = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {key}",
-        "User-Agent": f"add-non-steam-games/{PLUGIN_VERSION}",
+        "User-Agent": f"shortcut-forge/{PLUGIN_VERSION}",
     })
 
     try:
@@ -443,7 +443,7 @@ def _download_artwork(url: str) -> bytes:
         raise RuntimeError(f"Refusing to download {url}")
 
     request = urllib.request.Request(url, headers={
-        "User-Agent": f"add-non-steam-games/{PLUGIN_VERSION}",
+        "User-Agent": f"shortcut-forge/{PLUGIN_VERSION}",
     })
 
     try:
@@ -692,13 +692,13 @@ class Plugin:
         self._icon_cache: dict = {}
         # SteamGridDB game id -> its official Steam art, looked up once per add.
         self._official_art: dict = {}
-        decky.logger.info("Add Non-Steam Games ready")
+        decky.logger.info("Shortcut Forge ready")
 
     async def _unload(self):
-        decky.logger.info("Add Non-Steam Games unloaded")
+        decky.logger.info("Shortcut Forge unloaded")
 
     async def _uninstall(self):
-        decky.logger.info("Add Non-Steam Games uninstalled")
+        decky.logger.info("Shortcut Forge uninstalled")
 
     # --- Browsing --------------------------------------------------------
 

@@ -52,7 +52,7 @@ export interface Draft {
   addError: string | null;
 }
 
-const SOURCE_KEY = "add-non-steam-games.source";
+const SOURCE_KEY = "shortcut-forge.source";
 
 /** Whichever browser was used last, as a convenience that may be unavailable. */
 function readSource(): Source {

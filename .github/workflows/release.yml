@@ -26,6 +26,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Test
+        run: |
+          pnpm test
+          python3 -B tests/backend_presets.py
+
       - name: Build frontend
         run: pnpm run build
 

@@ -20,7 +20,7 @@ const TABS: Array<{ id: Source; label: string; icon: ReactNode }> = [
  * Steam marks gamepad focus by inverting the button's own surface, which is the
  * strongest state the control has — so that is what the *selected* tab wears
  * permanently, and focus gets the accent colour instead. Anything inline on the
- * button would beat both on specificity, hence a stylesheet: `.ansg-tab-selected`
+ * button would beat both on specificity, hence a stylesheet: `.sf-tab-selected`
  * follows the base rule so it wins the tie, and the focus rules follow that with
  * a higher specificity so focus always shows through the selection.
  *
@@ -28,18 +28,18 @@ const TABS: Array<{ id: Source; label: string; icon: ReactNode }> = [
  * move real DOM focus and the class name is not ours to depend on.
  */
 const TAB_STYLES = `
-.ansg-tab {
+.sf-tab {
   background: rgba(255, 255, 255, 0.08) !important;
   color: #dfe3e8 !important;
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
-.ansg-tab-selected {
+.sf-tab-selected {
   background: #ffffff !important;
   color: #12171d !important;
 }
-.ansg-tab:hover,
-.ansg-tab:focus,
-.ansg-tab.gpfocus {
+.sf-tab:hover,
+.sf-tab:focus,
+.sf-tab.gpfocus {
   background: var(--gpColor-Blue, #1a9fff) !important;
   color: #ffffff !important;
 }
@@ -78,7 +78,7 @@ export function SourceTabs({ value, onChange }: SourceTabsProps) {
           return (
             <DialogButton
               key={tab.id}
-              className={active ? "ansg-tab ansg-tab-selected" : "ansg-tab"}
+              className={active ? "sf-tab sf-tab-selected" : "sf-tab"}
               onClick={() => onChange(tab.id)}
               style={{
                 display: "flex",
