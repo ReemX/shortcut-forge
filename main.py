@@ -36,7 +36,7 @@ NON_EXECUTABLE_EXTENSIONS = {
 SETTINGS_FILENAME = "settings.json"
 
 # Shown in the panel so a stale install is obvious. Keep in sync with package.json.
-PLUGIN_VERSION = "2.1.0"
+PLUGIN_VERSION = "2.1.1"
 
 RELEASES_API = "https://api.github.com/repos/ReemX/shortcut-forge/releases/latest"
 RELEASES_DOWNLOAD = "https://github.com/ReemX/shortcut-forge/releases/download/"

@@ -6,6 +6,11 @@ reading the diff.
 
 Versions before 2.0.0 are from Add Non-Steam Games, the plugin this was forked from.
 
+## v2.1.1
+
+- Long text in a field no longer runs under its clear button, which was most noticeable on the API key.
+- **Check GitHub automatically** was too long for its row, so it is now **Check automatically**.
+
 ## v2.1.0
 
 - Shortcut Forge can now update itself. It is not in Decky's store, so Decky never offered updates for it. The plugin now asks GitHub for the latest release when the panel opens, at most every few hours, and shows an **Update** row when there is one. Your settings stay. You can turn the check off under **Settings**.

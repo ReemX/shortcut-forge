@@ -1113,7 +1113,7 @@ function SettingsScreen({
         ) : (
           <ListRow icon={<FaArrowsRotate />} label="Check for updates" subtitle={updateStatus || `You have v${PLUGIN_VERSION}.`} onSelect={onCheckUpdate} />
         )}
-        <ToggleRow icon={<FaGithub />} label="Check GitHub automatically" checked={updateChecksOn} onChange={onChangeUpdateChecks} />
+        <ToggleRow icon={<FaGithub />} label="Check automatically" checked={updateChecksOn} onChange={onChangeUpdateChecks} />
       </ListGroup>
       <div style={{ height: "10px" }} />
 

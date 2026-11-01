@@ -167,7 +167,9 @@ export function TextEntry({
   }, [captureGlobalPaste, visible]);
 
   return (
-    <div ref={row}>
+    <div ref={row} className="sf-text-entry">
+      {/* Steam draws the clear button over the input, so long text would run under it. */}
+      <style>{`.sf-text-entry input:not([data-paste-target]) { padding-right: 44px !important; }`}</style>
       <TextField
         label={label}
         value={value}
